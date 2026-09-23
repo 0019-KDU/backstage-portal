@@ -14,7 +14,10 @@
     "lint": "backstage-cli package lint"
   },
   "dependencies": {
+    "@aws/amazon-ecs-plugin-for-backstage": "^0.7.0",
+    "@backstage-community/plugin-github-actions": "^1.4.0",
     "@backstage/cli": "^0.36.6",
+    "@backstage/core-compat-api": "backstage:^",
     "@backstage/core-components": "^0.18.14",
     "@backstage/core-plugin-api": "^1.12.10",
     "@backstage/frontend-defaults": "^0.5.6",
@@ -28,6 +31,7 @@
     "@backstage/plugin-catalog": "^2.0.9",
     "@backstage/plugin-catalog-graph": "^0.6.8",
     "@backstage/plugin-catalog-import": "^0.13.18",
+    "@backstage/plugin-catalog-react": "backstage:^",
     "@backstage/plugin-home": "^0.9.10",
     "@backstage/plugin-home-react": "^0.1.42",
     "@backstage/plugin-kubernetes": "^0.12.23",

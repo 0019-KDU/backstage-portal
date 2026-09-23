@@ -1,0 +1,98 @@
+# DevOps94 IDP golden path: "Node.js service on AWS ECS Fargate"
+#
+# Creates a GitHub repository that is deployable on day 1:
+#   Node.js API + tests · Dockerfile (non-root) · Terraform (ECR + ECS via the ecs-service module)
+#   · CI/CD calling the platform's reusable pipeline (tests, Gitleaks, Trivy, ECR, ECS dev)
+#   · catalog-info.yaml (GitHub Actions, TechDocs, ECS annotations) · TechDocs
+# The first push of the new repository immediately deploys it to dev.
+# https://backstage.io/docs/features/software-templates/writing-templates
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: ecs-nodejs-service
+  title: Node.js service on AWS ECS (Fargate)
+  description: >-
+    Golden path: a Node.js API with tests, security scanning and CI/CD, deployed to
+    AWS ECS Fargate behind the shared load balancer. Live in dev about 5 minutes after creation.
+  tags:
+    - recommended
+    - nodejs
+    - aws
+    - ecs
+  links:
+    - url: https://github.com/0019-KDU/idp-platform/blob/main/.github/workflows/ecs-service.yml
+      title: Golden-path pipeline
+spec:
+  owner: group:default/platform-admins
+  type: service
+
+  parameters:
+    - title: Service details
+      required: [name, description, owner]
+      properties:
+        name:
+          title: Service name
+          type: string
+          description: >-
+            Lowercase letters, digits and dashes (3–22 characters). Used for the GitHub
+            repository, the URL path and all AWS resource names.
+          pattern: '^[a-z][a-z0-9-]{1,20}[a-z0-9]$'
+          ui:autofocus: true
+          ui:help: 'Example: orders-api'
+        description:
+          title: Description
+          type: string
+          description: One sentence, shown in the catalog and the repository.
+          maxLength: 120
+        owner:
+          title: Owner team
+          type: string
+          description: The team responsible for this service (on-call, reviews, cost).
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+
+  steps:
+    - id: fetch
+      name: Generate the service from the golden path
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+
+    - id: publish
+      name: Create the GitHub repository
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=0019-KDU&repo=${{ parameters.name }}
+        description: ${{ parameters.description }}
+        repoVisibility: public
+        defaultBranch: main
+        protectDefaultBranch: false
+        gitCommitMessage: Initial commit from the DevOps94 IDP golden path
+        topics:
+          - devops94-idp
+          - aws-ecs
+
+    - id: register
+      name: Register in the software catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: Repository
+        url: https://github.com/0019-KDU/${{ parameters.name }}
+      - title: CI/CD pipeline (running now)
+        url: https://github.com/0019-KDU/${{ parameters.name }}/actions
+      - title: Dev URL (live in about 5 minutes)
+        url: http://devops94-idp-alb-1896325251.ap-south-1.elb.amazonaws.com/dev/${{ parameters.name }}/

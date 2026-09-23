@@ -58,6 +58,9 @@ backend.add(import('@backstage/plugin-search-backend-module-pg'));
 backend.add(import('@backstage/plugin-search-backend-module-catalog'));
 backend.add(import('@backstage/plugin-search-backend-module-techdocs'));
 
+// AWS: Amazon ECS service status on entity pages (credentials: EC2 instance role)
+backend.add(import('@aws/amazon-ecs-plugin-for-backstage-backend'));
+
 // kubernetes plugin
 backend.add(import('@backstage/plugin-kubernetes-backend'));
 

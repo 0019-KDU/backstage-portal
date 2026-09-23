@@ -1,0 +1,29 @@
+# Backstage catalog entry. Annotations connect this component to its tools:
+#   GitHub repo + Actions runs, TechDocs (docs/), ECS service status (dev).
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description | dump }}
+  annotations:
+    github.com/project-slug: 0019-KDU/${{ values.name }}
+    backstage.io/techdocs-ref: dir:.
+    aws.amazon.com/amazon-ecs-service-arn: arn:aws:ecs:ap-south-1:697502032879:service/devops94-idp-cluster/${{ values.name }}-dev
+  tags:
+    - nodejs
+    - aws-ecs
+  links:
+    - url: http://devops94-idp-alb-1896325251.ap-south-1.elb.amazonaws.com/dev/${{ values.name }}/
+      title: Dev environment
+      icon: web
+    - url: https://ap-south-1.console.aws.amazon.com/cloudwatch/home?region=ap-south-1#logsV2:log-groups/log-group/$252Fecs$252Fdevops94-idp-svc-${{ values.name }}-dev
+      title: Logs (CloudWatch)
+      icon: dashboard
+    - url: https://ap-south-1.console.aws.amazon.com/ecs/v2/clusters/devops94-idp-cluster/services/${{ values.name }}-dev/health?region=ap-south-1
+      title: ECS service (AWS console)
+      icon: cloud
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  system: idp-demo

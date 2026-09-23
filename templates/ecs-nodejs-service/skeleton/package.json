@@ -1,0 +1,12 @@
+{
+  "name": "${{ values.name }}",
+  "version": "1.0.0",
+  "private": true,
+  "description": ${{ values.description | dump }},
+  "main": "server.js",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}
