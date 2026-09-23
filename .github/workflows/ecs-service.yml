@@ -1,0 +1,189 @@
+# =============================================================================
+# DevOps94 IDP — reusable golden-path pipeline for a Node.js service on ECS Fargate
+#
+# Services call it with ~10 lines (see "Usage"). Improvements made HERE reach every
+# service on its next run: this is how a golden path stays consistent after day 1.
+#
+#   test ─┐
+#         ├─► deploy-dev: ECR repo → build → Trivy image scan → push → terraform apply → smoke test
+#   scan ─┘   (only on push to main; pull requests run test + scan only)
+#
+# Usage (in the service repo, .github/workflows/ci-cd.yml):
+#   on: { push: { branches: [main] }, pull_request: {} }
+#   permissions: { contents: read, id-token: write }
+#   jobs:
+#     pipeline:
+#       uses: 0019-KDU/idp-platform/.github/workflows/ecs-service.yml@main
+#       with: { service-name: my-service }
+# =============================================================================
+name: ecs-service pipeline
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        description: "Service name (same as in infra/main.tf)"
+        required: true
+        type: string
+      node-version:
+        type: string
+        default: "24"
+      aws-region:
+        type: string
+        default: ap-south-1
+      aws-role-arn:
+        description: "IAM role assumed via OIDC (created by infra/platform)"
+        type: string
+        default: arn:aws:iam::697502032879:role/devops94-idp-github-actions
+      terraform-version:
+        type: string
+        default: 1.16.3
+    outputs:
+      dev-url:
+        value: ${{ jobs.deploy-dev.outputs.url }}
+
+env:
+  TRIVY_VERSION: 0.74.0
+  GITLEAKS_VERSION: 8.30.1
+
+jobs:
+  # ---------------------------------------------------------------------------
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install dependencies (if any)
+        run: if [ -f package-lock.json ]; then npm ci; else echo "no package-lock.json, nothing to install"; fi
+
+      - name: Run tests
+        run: npm test
+
+  # ---------------------------------------------------------------------------
+  scan:
+    name: Security scan (secrets, dependencies, IaC)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # full history: Gitleaks checks every commit, not just the latest
+
+      - name: Gitleaks, secrets in git history (blocking)
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks git --redact --no-banner --verbose .
+
+      - name: Trivy, vulnerable dependencies + secrets in files (blocking on HIGH/CRITICAL with a fix)
+        run: |
+          docker run --rm -v "$PWD:/src" "aquasec/trivy:${TRIVY_VERSION}" fs \
+            --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed \
+            --exit-code 1 --no-progress /src
+
+      - name: Trivy, Dockerfile + Terraform misconfigurations (report only, for now)
+        # Guardrail rollout: warn first, measure, then make it blocking (exit-code 1).
+        run: |
+          docker run --rm -v "$PWD:/src" "aquasec/trivy:${TRIVY_VERSION}" config \
+            --severity MEDIUM,HIGH,CRITICAL --exit-code 0 /src
+
+  # ---------------------------------------------------------------------------
+  deploy-dev:
+    name: Build, scan image, deploy to dev
+    needs: [test, scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: dev # shows up under the repo's "Deployments"; OIDC sub = repo:<owner>/<repo>:environment:dev
+      url: ${{ steps.smoke.outputs.url }}
+    concurrency:
+      group: deploy-${{ inputs.service-name }}-dev
+      cancel-in-progress: false # never kill a running terraform apply
+    permissions:
+      contents: read
+      id-token: write # allows requesting the OIDC token for AWS
+    outputs:
+      url: ${{ steps.smoke.outputs.url }}
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to AWS with OIDC (no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ inputs.aws-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+          terraform_wrapper: false # plain stdout, so `terraform output -raw` works in scripts
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Ensure the image repository exists (bootstrap, no-op after the first run)
+        run: |
+          terraform apply -input=false -auto-approve \
+            -target=aws_ecr_repository.this -target=aws_ecr_lifecycle_policy.this \
+            -var image_tag=bootstrap
+
+      - name: Log in to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        id: build
+        run: |
+          TAG="sha-${GITHUB_SHA::7}"
+          IMAGE="$(terraform output -raw ecr_repository_url):${TAG}"
+          # --provenance/--sbom=false: push ONE plain manifest per tag so ECR scanning
+          # and the lifecycle policy see exactly one image per build.
+          docker build --provenance=false --sbom=false \
+            --label org.opencontainers.image.revision="${GITHUB_SHA}" \
+            --label org.opencontainers.image.source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            -t "${IMAGE}" ..
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Trivy, scan the built image (blocking on CRITICAL with a fix)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "aquasec/trivy:${TRIVY_VERSION}" image \
+            --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress "${{ steps.build.outputs.image }}"
+
+      - name: Push image (tags are immutable, so skip if this commit was already pushed)
+        run: |
+          REPO="$(terraform output -raw ecr_repository_url)"
+          if aws ecr describe-images --repository-name "${REPO##*/}" --image-ids imageTag="${{ steps.build.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Image ${{ steps.build.outputs.tag }} already in ECR, not pushing again"
+          else
+            docker push "${{ steps.build.outputs.image }}"
+          fi
+
+      - name: Deploy to ECS (terraform apply waits until healthy; ECS rolls back on failure)
+        run: terraform apply -input=false -auto-approve -var image_tag="${{ steps.build.outputs.tag }}"
+
+      - name: Smoke test through the load balancer
+        id: smoke
+        run: |
+          URL="$(terraform output -raw dev_url)"
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          for i in $(seq 1 12); do
+            if curl -fsS "${URL}health"; then echo; break; fi
+            [ "$i" = 12 ] && { echo "health check failed"; exit 1; }
+            sleep 5
+          done
+          curl -fsS "${URL}" | tee /tmp/body.json; echo
+          {
+            echo "### :rocket: ${{ inputs.service-name }} deployed to **dev**"
+            echo "- Image: \`${{ steps.build.outputs.image }}\`"
+            echo "- URL: ${URL}"
+          } >> "$GITHUB_STEP_SUMMARY"

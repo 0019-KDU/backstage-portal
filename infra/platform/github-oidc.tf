@@ -91,7 +91,8 @@ data "aws_iam_policy_document" "github_actions" {
     sid = "EcsTaskDefinitions"
     actions = [
       "ecs:RegisterTaskDefinition", "ecs:DeregisterTaskDefinition",
-      "ecs:DescribeTaskDefinition", "ecs:ListTaskDefinitions", "ecs:TagResource"
+      "ecs:DescribeTaskDefinition", "ecs:ListTaskDefinitions", "ecs:TagResource",
+      "ecs:ListTagsForResource" # Terraform reads task-definition tags on refresh
     ]
     resources = ["*"]
   }
