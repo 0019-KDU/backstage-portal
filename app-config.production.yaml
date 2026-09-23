@@ -63,17 +63,8 @@ auth:
 catalog:
   # Overrides the default list locations from app-config.yaml as these contain example data.
   # File locations are relative to the backend process working dir (/app in the container).
+  # Only real platform data in production (Backstage's example entities are dev-only).
   locations:
-    # Local example data, replace this with your production config, these are intended for demo use only.
-    - type: file
-      target: ./examples/entities.yaml
-
-    # Local example template
-    - type: file
-      target: ./examples/template/template.yaml
-      rules:
-        - allow: [Template]
-
     # Users/groups allowed to sign in via GitHub.
     - type: file
       target: ./catalog/users.yaml
