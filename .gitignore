@@ -66,3 +66,10 @@ e2e-test-report/
 
 # Cache
 .cache/
+
+# Terraform (state lives in S3; never commit local state or provider caches)
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
