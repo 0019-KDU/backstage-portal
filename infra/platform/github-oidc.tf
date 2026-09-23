@@ -14,6 +14,12 @@ variable "github_owner" {
   default     = "0019-KDU"
 }
 
+variable "github_owner_id" {
+  description = "Immutable numeric ID of github_owner (curl https://api.github.com/users/<owner> | jq .id)"
+  type        = string
+  default     = "112224823"
+}
+
 data "aws_caller_identity" "current" {}
 
 locals {
@@ -52,10 +58,15 @@ data "aws_iam_policy_document" "github_trust" {
     }
     # ...and come from a repository owned by var.github_owner.
     # Forks and other people's repos are rejected.
+    #
+    # GitHub "immutable subject claims" (repos created after 2026-07-15):
+    #   sub = repo:<owner>@<owner_id>/<repo>@<repo_id>:environment:dev
+    # Pinning the numeric owner ID means a future account with the same NAME
+    # (after a rename/deletion) can never assume this role.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_owner}/*"]
+      values   = ["repo:${var.github_owner}@${var.github_owner_id}/*"]
     }
   }
 }
