@@ -30,3 +30,9 @@ variable "container_port" {
   type        = number
   default     = 8080
 }
+
+variable "data_availability_zones" {
+  description = "AZs for private data subnets. All three: RDS instance classes are not always available in every AZ (e.g. db.t4g.micro in ap-south-1c only)."
+  type        = list(string)
+  default     = ["ap-south-1a", "ap-south-1b", "ap-south-1c"]
+}

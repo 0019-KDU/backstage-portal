@@ -63,6 +63,22 @@ Developer ─► Backstage "Create" (name, description, team)
 | 10 | 10:30 | Catalog → the new component: owner, docs, CI and ECS tabs | **Live** | Created, deployed, documented and discoverable, with no tickets. |
 | 11 | 11:30 | Wrap-up: the cost slide (below) | – | Runs on ECS Fargate in your AWS account. No Kubernetes to operate. |
 
+### Optional add-on (+4 min): self-service cloud resources
+
+| # | Show | Live or prepared | Say |
+|---|---|---|---|
+| A | **Create** → "S3 bucket (AWS)" (or PostgreSQL/EC2), fill in name, purpose, owner, "used by" service | **Live** | Developers ask for infrastructure in a form. They don't write Terraform or get console access. |
+| B | Result → **Pull request**: generated Terraform (5 lines using a vetted module), then the `terraform plan` comment | **Live** | Every request is code, and the plan shows exactly what will be created before anyone approves. |
+| C | Merge (as the platform team) → Actions: *Apply* | **Live** (S3 ≈ 1 min; RDS ≈ 8–10 min, so use S3 live) | Approval is a merge. Only merged code can use the AWS role that creates things. |
+| D | Catalog → `rds-orders-db` → *Relations*: `orders-api` depends on it; links to the RDS console + Terraform | Prepared | Every resource has an owner and a consumer, so there's no orphaned infrastructure. |
+
+Guardrails to mention: databases only in private subnets and reachable only from ECS services;
+passwords generated into Secrets Manager; S3 private + encrypted + HTTPS-only; EC2 with no SSH
+and no open ports (browser shell via Systems Manager); size allow-lists with the cost shown in the form.
+
+**Decommission:** a PR that adds a `DESTROY` file to `resources/<type>/<name>/` and deletes its
+`catalog-info.yaml`. The plan shows only deletions; the merge removes it from AWS and the catalog.
+
 **If the pipeline is slow or fails live:** switch to `orders-api`. It went through exactly
 the same path; show its green run and its ECS tab.
 
@@ -81,6 +97,8 @@ script prints. Never tear down `reference-api` (the script refuses to).
 |---|---|
 | ALB (shared) | ~$18–20 |
 | Each service in dev (Fargate Spot, 0.25 vCPU / 0.5 GB) | ~$3 |
+| RDS `orders-db` (db.t4g.micro, 20 GiB) — demo example | ~$15 |
+| S3 `idp-demo-files` | ~$0 |
 | ECR, CloudWatch Logs, S3 state | < $2 |
 | Backstage EC2 (t3.large, existing) | ~$60 |
 
@@ -101,6 +119,8 @@ To pause a service: set `desired_count = 0` in its `infra/main.tf` module call a
 |---|---|---|
 | Login: "redirect_uri mismatch" | Public IP changed | Pre-demo step 1 |
 | Create fails at "Create the GitHub repository" | Token expired or missing scope, or repo name exists | Pre-demo step 2; choose another name |
+| RDS apply: `InvalidVPCNetworkStateFault ... sufficient capacity` | Instance class not available in the subnet's AZ | Private subnets cover all 3 AZs (`data_availability_zones`); re-run the job |
+| Resource PR has no plan comment | Plan role trust or pipeline paths | Check the `resources` workflow run on the PR |
 | Pipeline: `Not authorized to perform sts:AssumeRoleWithWebIdentity` | OIDC trust doesn't match the token's `sub` (GitHub immutable subject claims) | Trust is `repo:0019-KDU@112224823/*` in `infra/platform/github-oidc.tf` |
 | Pipeline: `AccessDenied ... ecs:<Action>` | New AWS provider feature needs a new permission | Add exactly that action to `infra/platform/github-oidc.tf`, apply |
 | ECS tab empty | Service not deployed yet, or ARN annotation wrong | Wait for the pipeline; check `aws.amazon.com/amazon-ecs-service-arn` |
