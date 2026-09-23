@@ -1,0 +1,95 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: aws-s3-bucket
+  title: S3 bucket (AWS)
+  description: >-
+    Private, encrypted S3 bucket: public access blocked, HTTPS only, versioning with
+    30-day cleanup of old versions. Opens a pull request: created after platform-team approval.
+  tags: [aws, s3, storage, self-service]
+spec:
+  owner: group:default/platform-admins
+  type: resource
+  parameters:
+    - title: Bucket
+      required: [name, description, owner]
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Lowercase letters, digits and dashes (3–22 characters).
+          pattern: '^[a-z][a-z0-9-]{1,20}[a-z0-9]$'
+          ui:autofocus: true
+          ui:help: 'Example: invoices'
+        description:
+          title: Purpose
+          type: string
+          description: One sentence, shown in the catalog and on the pull request.
+          maxLength: 120
+        owner:
+          title: Owner team
+          type: string
+          description: Team responsible for this resource (cost, access, lifecycle).
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+        component:
+          title: Used by service (optional)
+          type: string
+          description: Links the resource to a service in the catalog.
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: Component
+        versioning:
+          title: Keep previous versions of files (recommended)
+          type: boolean
+          default: true
+  steps:
+    - id: fetch
+      name: Generate Terraform from the approved module
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: resources/s3-bucket/${{ parameters.name }}
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          component: ${{ parameters.component }}
+          requester: ${{ user.entityRef }}
+          type: s3-bucket
+          versioning: ${{ parameters.versioning }}
+    - id: pr
+      name: Open a pull request for review
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=0019-KDU&repo=platform-resources
+        branchName: request/s3-bucket-${{ parameters.name }}
+        title: 'Request: S3 bucket "${{ parameters.name }}"'
+        commitMessage: 'Request S3 bucket ${{ parameters.name }} (via Backstage)'
+        description: |
+          ## S3 bucket request
+
+          | | |
+          |---|---|
+          | Name | `${{ parameters.name }}` |
+          | Purpose | ${{ parameters.description }} |
+          | Owner | `${{ parameters.owner }}` |
+          | Used by | `${{ parameters.component or '-' }}` |
+          | Requested by | `${{ user.entityRef }}` |
+          | Versioning | `${{ parameters.versioning }}` |
+
+          **Next:** the pipeline posts the `terraform plan` below as a comment.
+          The platform team reviews it; **merging creates the resource in AWS**.
+  output:
+    links:
+      - title: Pull request (plan + review; merge to create)
+        url: ${{ steps.pr.output.remoteUrl }}
+    text:
+      - title: What happens next
+        content: |
+          1. The pipeline runs `terraform plan` and comments it on the pull request (1–2 min).
+          2. The platform team reviews and merges.
+          3. The resource is created in AWS and appears in the catalog.

@@ -46,3 +46,27 @@ resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
 }
+
+# ---------------------------------------------------------------------------
+# Private "data" subnets: databases live here. No route to the internet at all
+# (no IGW route, no NAT), so nothing in them is reachable from outside the VPC.
+# 10.20.32.0/20 and 10.20.48.0/20
+# ---------------------------------------------------------------------------
+resource "aws_subnet" "private" {
+  count             = length(var.availability_zones)
+  vpc_id            = aws_vpc.this.id
+  availability_zone = var.availability_zones[count.index]
+  cidr_block        = cidrsubnet(var.vpc_cidr, 4, count.index + 2)
+  tags              = { Name = "${var.name}-private-${var.availability_zones[count.index]}", tier = "private" }
+}
+
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.this.id
+  tags   = { Name = "${var.name}-private" } # only the implicit "local" route
+}
+
+resource "aws_route_table_association" "private" {
+  count          = length(aws_subnet.private)
+  subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private.id
+}

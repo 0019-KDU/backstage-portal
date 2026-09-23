@@ -77,11 +77,18 @@ catalog:
       rules:
         - allow: [System]
 
-    # Golden-path templates, read live from GitHub (edit + push = updated template, no rebuild)
+    # Golden-path + self-service templates, read live from GitHub via one index file
+    # (edit/add a template + push = updated in Backstage, no rebuild)
     - type: url
-      target: https://github.com/0019-KDU/idp-platform/blob/main/templates/ecs-nodejs-service/template.yaml
+      target: https://github.com/0019-KDU/idp-platform/blob/main/templates/all-templates.yaml
       rules:
-        - allow: [Template]
+        - allow: [Location, Template]
+
+    # Self-service cloud resources (RDS, S3, EC2): discovered after their PR is merged
+    - type: url
+      target: https://github.com/0019-KDU/platform-resources/blob/main/resources/*/*/catalog-info.yaml
+      rules:
+        - allow: [Resource]
 
     # Existing services (services created by the template register themselves)
     - type: url
