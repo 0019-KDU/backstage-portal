@@ -1,0 +1,46 @@
+# Production runtime for Backstage on this EC2 host.
+#   docker compose -f deploy/docker-compose.yml up -d
+#
+# - Secrets come from /etc/backstage/backstage.env (outside Git, root:docker 0640).
+# - network_mode: host + backend.listen.host=127.0.0.1 => Backstage is reachable
+#   only on the host loopback; Nginx is the only public entrypoint. It also lets
+#   the container reach PostgreSQL on 127.0.0.1 without exposing 5432 anywhere.
+# - restart: unless-stopped + docker.service enabled => restarts after crashes,
+#   Docker daemon restarts and EC2 reboots.
+name: backstage
+
+services:
+  backstage:
+    image: backstage-devops94:latest
+    container_name: backstage
+    network_mode: host
+    restart: unless-stopped
+    env_file:
+      - /etc/backstage/backstage.env
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=1024
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1536m
+    healthcheck:
+      # Official Backstage root health service endpoint.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:7007/.backstage/health/v1/readiness').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: "5"

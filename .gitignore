@@ -28,7 +28,9 @@ node_modules/
 
 # dotenv environment variables file
 .env
-.env.test
+.env.*
+*.env
+!*.env.example
 
 # Build output
 dist
@@ -45,6 +47,16 @@ site
 
 # Sensitive credentials
 *-credentials.yaml
+*credentials*
+*.secret
+*.secrets
+*.pem
+*.key
+*.p12
+
+# Database dumps
+*.dump
+*.sql.gz
 
 # vscode database functionality support files
 *.session.sql

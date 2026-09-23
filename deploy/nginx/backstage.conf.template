@@ -1,0 +1,80 @@
+# Nginx site for Backstage. Rendered by deploy/scripts/enable-nginx-selfsigned.sh
+# (public IP, self-signed) or deploy/scripts/enable-nginx-site.sh (domain, Let's Encrypt),
+# which replace __DOMAIN__/__SSL_CERT__/__SSL_KEY__ and install it as
+# /etc/nginx/sites-available/backstage.
+#
+#   Internet --443/TLS--> Nginx --> 127.0.0.1:7007 (Backstage container)
+
+map $http_upgrade $backstage_connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+upstream backstage_backend {
+    server 127.0.0.1:7007;
+    keepalive 16;
+}
+
+# HTTP: ACME HTTP-01 challenges + redirect everything else to HTTPS.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type text/plain;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name __DOMAIN__;
+
+    ssl_certificate     __SSL_CERT__;
+    ssl_certificate_key __SSL_KEY__;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:backstage_ssl:10m;
+    ssl_session_timeout 1d;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    server_tokens off;
+
+    access_log /var/log/nginx/backstage.access.log;
+    error_log  /var/log/nginx/backstage.error.log warn;
+
+    # Catalog imports / scaffolder payloads / TechDocs uploads.
+    client_max_body_size 25m;
+
+    location / {
+        proxy_pass http://backstage_backend;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+
+        # WebSocket upgrade (signals plugin, /api/signals).
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $backstage_connection_upgrade;
+
+        proxy_connect_timeout 10s;
+        proxy_send_timeout    120s;
+        # Long enough for scaffolder task log streams and signal websockets.
+        proxy_read_timeout    300s;
+
+        proxy_buffers 16 32k;
+        proxy_buffer_size 32k;
+    }
+}

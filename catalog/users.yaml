@@ -1,0 +1,25 @@
+# Users allowed to sign in with GitHub (resolver: userIdMatchingUserEntityAnnotation).
+# `github.com/user-id` must be the account's GraphQL node_id:
+#   curl -s https://api.github.com/users/<login> | jq -r .node_id
+# https://backstage.io/docs/features/software-catalog/descriptor-format#kind-user
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: platform-admins
+spec:
+  type: team
+  children: []
+  members: [0019-kdu]
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: 0019-kdu
+  annotations:
+    # GitHub GraphQL node_id of https://github.com/0019-KDU (numeric id 112224823)
+    github.com/user-id: U_kgDOBrBqNw
+    github.com/user-login: 0019-KDU
+spec:
+  profile:
+    displayName: CR Hapuarachchi
+  memberOf: [platform-admins]
