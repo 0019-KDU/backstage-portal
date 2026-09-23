@@ -114,11 +114,15 @@ data "aws_iam_policy_document" "github_actions" {
     actions = [
       "ecs:CreateService", "ecs:UpdateService", "ecs:DeleteService",
       "ecs:DescribeServices", "ecs:ListTasks", "ecs:DescribeTasks",
-      "ecs:TagResource", "ecs:UntagResource", "ecs:ListTagsForResource"
+      "ecs:TagResource", "ecs:UntagResource", "ecs:ListTagsForResource",
+      # AWS provider 6.x waits for a rollout (wait_for_steady_state) with these newer APIs
+      "ecs:ListServiceDeployments", "ecs:DescribeServiceDeployments", "ecs:DescribeServiceRevisions"
     ]
     resources = [
       "arn:aws:ecs:${var.region}:${local.account_id}:service/${aws_ecs_cluster.this.name}/*",
       "arn:aws:ecs:${var.region}:${local.account_id}:task/${aws_ecs_cluster.this.name}/*",
+      "arn:aws:ecs:${var.region}:${local.account_id}:service-deployment/${aws_ecs_cluster.this.name}/*",
+      "arn:aws:ecs:${var.region}:${local.account_id}:service-revision/${aws_ecs_cluster.this.name}/*",
       aws_ecs_cluster.this.arn
     ]
   }
