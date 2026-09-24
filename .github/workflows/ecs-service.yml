@@ -6,6 +6,8 @@
 #         │   ECR, scanned   rolling  blue/green  approval + blue/green
 #         └─► docs: build TechDocs in CI, publish to S3 (Backstage only reads them)
 #
+# Docs-only commits (docs/**, mkdocs.yml, *.md) publish the docs but do NOT build or deploy.
+#
 # The same image (sha-<commit>) is promoted; it is never rebuilt per environment.
 #
 # Usage (service repo, .github/workflows/ci-cd.yml):
@@ -71,6 +73,38 @@ env:
   MKDOCS_TECHDOCS_CORE_VERSION: 1.7.1
 
 jobs:
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect what changed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      deploy: ${{ steps.diff.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # First push of a new repo, force-push or unknown base: treat as a code change.
+          if [ "${GITHUB_EVENT_NAME}" != "push" ] || [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"; echo "no usable base commit: full pipeline"; exit 0
+          fi
+          CHANGED=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+          echo "Changed files:"; echo "$CHANGED"
+          # Anything outside documentation needs a new image and a deployment
+          NON_DOCS=$(echo "$CHANGED" | grep -vE '^(docs/|mkdocs\.yml$|.*\.md$)' || true)
+          if [ -n "$NON_DOCS" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "### :books: Docs-only change: docs are published, nothing is built or deployed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   # ---------------------------------------------------------------------------
   test:
     name: Tests
@@ -209,8 +243,8 @@ jobs:
   # ---------------------------------------------------------------------------
   build:
     name: Build once, scan, push to ECR
-    needs: [test, scan]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [changes, test, scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
