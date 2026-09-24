@@ -1,0 +1,3 @@
+# Runtime dependencies (pinned: reproducible builds, Trivy scans exact versions)
+fastapi==0.141.1
+uvicorn==0.53.0

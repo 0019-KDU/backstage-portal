@@ -4,6 +4,8 @@ metadata:
   name: ec2-${{ values.name }}
   title: ${{ values.name }} (EC2 instance)
   description: ${{ values.description | dump }}
+  annotations:
+    aws.amazon.com/cost-insights-tags: resource=${{ values.name }},resource-type=ec2-instance
   tags:
     - aws
     - ec2

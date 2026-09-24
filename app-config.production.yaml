@@ -105,3 +105,55 @@ techdocs:
     type: 'local'
     local:
       publishDirectory: /tmp/techdocs
+
+# Cost Insights (page /cost-insights + "Costs" tab on catalog entities).
+# Data: AWS Cost Explorer via @aws/cost-insights-plugin-for-backstage-backend, using the
+# EC2 instance role (ce:GetCostAndUsage). Entities choose their costs with the annotation
+#   aws.amazon.com/cost-insights-tags: <tag>=<value>[,<tag>=<value>]
+# Tags must be ACTIVATED as cost allocation tags in AWS Billing (owner, component, project, ...).
+costInsights:
+  # Yearly cost of one engineer (USD): Cost Insights expresses savings/overspend in engineer terms
+  engineerCost: 60000
+
+aws:
+  costInsights:
+    costExplorer:
+      accountId: '697502032879'
+      region: us-east-1 # Cost Explorer's API endpoint is global, served from us-east-1
+      costMetric: UnblendedCost
+    cache:
+      enable: true
+      defaultTtl: 86400000 # 24h: Cost Explorer charges $0.01 per API request and data updates ~daily
+    entityGroups:
+      # Team page: cost per service the team owns, and per AWS product (ECS, RDS, ...)
+      - kind: Group
+        groups:
+          - name: service
+            type: TAG
+            key: component
+          - name: aws-product
+            type: DIMENSION
+            key: SERVICE
+      # Service page: per AWS product and per environment
+      - kind: Component
+        groups:
+          - name: aws-product
+            type: DIMENSION
+            key: SERVICE
+          - name: environment
+            type: TAG
+            key: environment
+      # Whole platform (System): per team and per service
+      - kind: System
+        groups:
+          - name: team
+            type: TAG
+            key: owner
+          - name: service
+            type: TAG
+            key: component
+      - kind: Resource
+        groups:
+          - name: aws-product
+            type: DIMENSION
+            key: SERVICE

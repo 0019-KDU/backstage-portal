@@ -35,7 +35,7 @@ module "this" {
   allocated_storage_gb = ${{ values.storage }}
   tags = {
     owner        = "${{ values.owner }}"
-    component    = "${{ values.component }}"
+    component    = "${{ (values.component or '').split('/') | last }}"
     requested-by = "${{ values.requester }}"
   }
 }

@@ -12,7 +12,7 @@ metadata:
     aws.amazon.com/cost-insights-tags: component=${{ values.name }}
     aws.amazon.com/amazon-ecs-service-arn: arn:aws:ecs:ap-south-1:697502032879:service/devops94-idp-cluster/${{ values.name }}-dev
   tags:
-    - nodejs
+    - python
     - aws-ecs
   links:
     - url: http://devops94-idp-alb-1896325251.ap-south-1.elb.amazonaws.com/dev/${{ values.name }}/

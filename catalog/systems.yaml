@@ -3,6 +3,9 @@ apiVersion: backstage.io/v1alpha1
 kind: System
 metadata:
   name: idp-demo
+  annotations:
+    # Total cost of everything the IDP created (AWS tag project=devops94-idp)
+    aws.amazon.com/cost-insights-tags: project=devops94-idp
   description: Services created through the DevOps94 IDP golden path (ECS Fargate)
 spec:
   owner: platform-admins

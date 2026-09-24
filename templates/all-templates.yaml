@@ -8,6 +8,7 @@ metadata:
 spec:
   targets:
     - ./ecs-nodejs-service/template.yaml
+    - ./ecs-python-service/template.yaml
     - ./rds-postgres/template.yaml
     - ./s3-bucket/template.yaml
     - ./ec2-instance/template.yaml

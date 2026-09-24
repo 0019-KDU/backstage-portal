@@ -6,6 +6,10 @@ apiVersion: backstage.io/v1alpha1
 kind: Group
 metadata:
   name: platform-admins
+  title: Platform Admins
+  annotations:
+    # Cost of everything this team owns (AWS tag owner=<this group's entity ref>)
+    aws.amazon.com/cost-insights-tags: owner=group:default/platform-admins
 spec:
   type: team
   children: []

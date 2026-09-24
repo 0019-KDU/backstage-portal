@@ -4,6 +4,7 @@ import { navModule } from './modules/nav';
 import { homeModule } from './modules/home';
 import { signInModule } from './modules/signIn';
 import { amazonEcsModule } from './modules/amazonEcs';
+import { costInsightsModule } from './modules/costInsights';
 
 export default createApp({
   features: [
@@ -12,5 +13,6 @@ export default createApp({
     homeModule,
     signInModule,
     amazonEcsModule,
+    costInsightsModule,
   ],
 });

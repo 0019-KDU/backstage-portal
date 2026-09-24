@@ -60,6 +60,8 @@ backend.add(import('@backstage/plugin-search-backend-module-techdocs'));
 
 // AWS: Amazon ECS service status on entity pages (credentials: EC2 instance role)
 backend.add(import('@aws/amazon-ecs-plugin-for-backstage-backend'));
+// AWS: Cost Explorer data for the Cost Insights page and entity "Costs" tabs
+backend.add(import('@aws/cost-insights-plugin-for-backstage-backend'));
 
 // kubernetes plugin
 backend.add(import('@backstage/plugin-kubernetes-backend'));

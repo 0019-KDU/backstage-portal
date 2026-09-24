@@ -1,5 +1,6 @@
 # =============================================================================
-# DevOps94 IDP — reusable golden-path pipeline for a Node.js service on ECS Fargate
+# DevOps94 IDP — reusable golden-path pipeline for a service on ECS Fargate
+# (languages: node, python; everything after the test job is language-independent)
 #
 # Services call it with ~10 lines (see "Usage"). Improvements made HERE reach every
 # service on its next run: this is how a golden path stays consistent after day 1.
@@ -25,9 +26,16 @@ on:
         description: "Service name (same as in infra/main.tf)"
         required: true
         type: string
+      language:
+        description: "node | python"
+        type: string
+        default: node
       node-version:
         type: string
         default: "24"
+      python-version:
+        type: string
+        default: "3.13"
       aws-region:
         type: string
         default: ap-south-1
@@ -57,14 +65,34 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
+        if: inputs.language == 'node'
         with:
           node-version: ${{ inputs.node-version }}
 
-      - name: Install dependencies (if any)
-        run: if [ -f package-lock.json ]; then npm ci; else echo "no package-lock.json, nothing to install"; fi
+      - uses: actions/setup-python@v7
+        if: inputs.language == 'python'
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        env:
+          LANGUAGE: ${{ inputs.language }}
+        run: |
+          case "$LANGUAGE" in
+            node)   if [ -f package-lock.json ]; then npm ci; else echo "no package-lock.json, nothing to install"; fi ;;
+            python) pip install -r requirements.txt -r requirements-dev.txt ;;
+            *)      echo "::error::unsupported language '$LANGUAGE' (use node or python)"; exit 1 ;;
+          esac
 
       - name: Run tests
-        run: npm test
+        env:
+          LANGUAGE: ${{ inputs.language }}
+        run: |
+          case "$LANGUAGE" in
+            node)   npm test ;;
+            python) python -m pytest -q ;;
+          esac
 
   # ---------------------------------------------------------------------------
   scan:

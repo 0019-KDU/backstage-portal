@@ -35,7 +35,7 @@ module "this" {
   root_volume_gb = ${{ values.rootVolume }}
   tags = {
     owner        = "${{ values.owner }}"
-    component    = "${{ values.component }}"
+    component    = "${{ (values.component or '').split('/') | last }}"
     requested-by = "${{ values.requester }}"
   }
 }

@@ -4,6 +4,8 @@ metadata:
   name: rds-${{ values.name }}
   title: ${{ values.name }} (PostgreSQL)
   description: ${{ values.description | dump }}
+  annotations:
+    aws.amazon.com/cost-insights-tags: resource=${{ values.name }},resource-type=rds-postgres
   tags:
     - aws
     - rds

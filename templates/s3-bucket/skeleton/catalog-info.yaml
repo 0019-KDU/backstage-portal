@@ -4,6 +4,8 @@ metadata:
   name: s3-${{ values.name }}
   title: ${{ values.name }} (S3 bucket)
   description: ${{ values.description | dump }}
+  annotations:
+    aws.amazon.com/cost-insights-tags: resource=${{ values.name }},resource-type=s3-bucket
   tags:
     - aws
     - s3
