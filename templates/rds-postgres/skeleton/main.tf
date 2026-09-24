@@ -30,6 +30,7 @@ provider "aws" {
 
 module "this" {
   source               = "git::https://github.com/0019-KDU/idp-platform.git//infra/modules/rds-postgres?ref=main"
+  environment          = "${{ values.environment }}"
   name                 = "${{ values.name }}"
   instance_class       = "${{ values.instanceClass }}"
   allocated_storage_gb = ${{ values.storage }}

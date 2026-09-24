@@ -1,24 +1,24 @@
-# Operations
+# Environments & deployments
 
-## Logs
-
-```bash
-aws logs tail /ecs/devops94-idp-svc-${{ values.name }}-dev --follow
+```
+git push main
+  ├─ tests · Gitleaks · Trivy
+  ├─ build image once → Trivy image scan → ECR (sha-<commit>)
+  ├─ dev      ROLLING      automatic
+  ├─ staging  BLUE/GREEN   automatic after dev
+  └─ prod     BLUE/GREEN   waits for approval (GitHub Environment "prod"), 10 min bake time
 ```
 
-## Current deployment
+| | dev | staging | prod |
+|---|---|---|---|
+| Deployment | rolling | blue/green (3 min bake) | blue/green (10 min bake) |
+| Tasks (autoscaling) | 1–2, Spot | 1–2 | 2–6 across 2 AZs |
+| Size | 0.25 vCPU / 0.5 GB | 0.25 vCPU / 0.5 GB | 0.5 vCPU / 1 GB |
 
-```bash
-aws ecs describe-services --cluster devops94-idp-cluster --services ${{ values.name }}-dev \
-  --query 'services[0].deployments[].{status:status,rollout:rolloutState,taskDefinition:taskDefinition}'
-```
+**Blue/green**: ECS starts the complete new version (green) next to the current one (blue), checks
+it is healthy, switches the load balancer, and keeps blue running for the bake time. If the new
+version fails, ECS switches back automatically.
 
-## Roll back
+**Autoscaling** keeps average CPU near 60 % (memory 75 %) between the min and max task counts.
 
-Revert the commit on `main` and push; the pipeline redeploys the previous code as a new
-immutable image. ECS also rolls back on its own when a new deployment fails health checks
-(deployment circuit breaker).
-
-## Pause (cost saving)
-
-Set `desired_count = 0` for the environment in `infra/main.tf` and push.
+**Logs**: `aws logs tail /ecs/devops94-idp-<env>-svc-${{ values.name }} --follow`

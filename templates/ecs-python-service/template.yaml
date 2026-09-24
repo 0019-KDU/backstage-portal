@@ -13,9 +13,8 @@ metadata:
   title: Python (FastAPI) service on AWS ECS (Fargate)
   description: >-
     Golden path: a Python FastAPI service with pytest, OpenAPI docs, security scanning
-    and CI/CD, deployed to AWS ECS Fargate behind the shared load balancer. Live in dev about 5 minutes after creation.
+    and CI/CD, deployed to AWS ECS Fargate behind the shared load balancer. Deploys dev → staging → prod (approval, blue/green, autoscaling).
   tags:
-    - recommended
     - python
     - fastapi
     - aws
@@ -79,6 +78,42 @@ spec:
           - devops94-idp
           - aws-ecs
 
+    - id: env-dev
+      name: Create environment dev (main branch only)
+      action: github:environment:create
+      input:
+        repoUrl: github.com?owner=0019-KDU&repo=${{ parameters.name }}
+        name: dev
+        deploymentBranchPolicy:
+          protected_branches: false
+          custom_branch_policies: true
+        customBranchPolicyNames: [main]
+
+    - id: env-staging
+      name: Create environment staging (main branch only)
+      action: github:environment:create
+      input:
+        repoUrl: github.com?owner=0019-KDU&repo=${{ parameters.name }}
+        name: staging
+        deploymentBranchPolicy:
+          protected_branches: false
+          custom_branch_policies: true
+        customBranchPolicyNames: [main]
+
+    - id: env-prod
+      name: Create environment prod (approval required, main branch only)
+      action: github:environment:create
+      input:
+        repoUrl: github.com?owner=0019-KDU&repo=${{ parameters.name }}
+        name: prod
+        deploymentBranchPolicy:
+          protected_branches: false
+          custom_branch_policies: true
+        customBranchPolicyNames: [main]
+        reviewers:
+          - user:default/0019-kdu # platform team approver
+        preventSelfReview: false
+
     - id: register
       name: Register in the software catalog
       action: catalog:register
@@ -93,9 +128,11 @@ spec:
         entityRef: ${{ steps.register.output.entityRef }}
       - title: Repository
         url: https://github.com/0019-KDU/${{ parameters.name }}
-      - title: CI/CD pipeline (running now)
+      - title: Pipeline (dev → staging → prod)
         url: https://github.com/0019-KDU/${{ parameters.name }}/actions
-      - title: API docs (OpenAPI, live in about 5 minutes)
-        url: http://devops94-idp-alb-1896325251.ap-south-1.elb.amazonaws.com/dev/${{ parameters.name }}/docs
-      - title: Dev URL (live in about 5 minutes)
-        url: http://devops94-idp-alb-1896325251.ap-south-1.elb.amazonaws.com/dev/${{ parameters.name }}/
+      - title: dev (first deploy ~8 min)
+        url: http://devops94-idp-dev-alb-754517378.ap-south-1.elb.amazonaws.com/${{ parameters.name }}/
+      - title: staging
+        url: http://devops94-idp-staging-alb-575975725.ap-south-1.elb.amazonaws.com/${{ parameters.name }}/
+      - title: prod (after approval)
+        url: http://devops94-idp-prod-alb-793088738.ap-south-1.elb.amazonaws.com/${{ parameters.name }}/

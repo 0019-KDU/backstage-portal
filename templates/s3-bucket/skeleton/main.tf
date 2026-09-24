@@ -29,9 +29,10 @@ provider "aws" {
 }
 
 module "this" {
-  source     = "git::https://github.com/0019-KDU/idp-platform.git//infra/modules/s3-bucket?ref=main"
-  name       = "${{ values.name }}"
-  versioning = ${{ values.versioning }}
+  source      = "git::https://github.com/0019-KDU/idp-platform.git//infra/modules/s3-bucket?ref=main"
+  environment = "${{ values.environment }}"
+  name        = "${{ values.name }}"
+  versioning  = ${{ values.versioning }}
   tags = {
     owner        = "${{ values.owner }}"
     component    = "${{ (values.component or '').split('/') | last }}"

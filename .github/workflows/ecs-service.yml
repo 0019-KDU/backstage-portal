@@ -1,21 +1,22 @@
 # =============================================================================
 # DevOps94 IDP — reusable golden-path pipeline for a service on ECS Fargate
-# (languages: node, python; everything after the test job is language-independent)
 #
-# Services call it with ~10 lines (see "Usage"). Improvements made HERE reach every
-# service on its next run: this is how a golden path stays consistent after day 1.
+#   test ─┐                                     (pull requests stop here)
+#   scan ─┴─► build ONCE ─► dev ─► staging ─► prod
+#             ECR, scanned   rolling  blue/green  approval + blue/green
 #
-#   test ─┐
-#         ├─► deploy-dev: ECR repo → build → Trivy image scan → push → terraform apply → smoke test
-#   scan ─┘   (only on push to main; pull requests run test + scan only)
+# The same image (sha-<commit>) is promoted; it is never rebuilt per environment.
 #
-# Usage (in the service repo, .github/workflows/ci-cd.yml):
+# Usage (service repo, .github/workflows/ci-cd.yml):
 #   on: { push: { branches: [main] }, pull_request: {} }
 #   permissions: { contents: read, id-token: write }
 #   jobs:
 #     pipeline:
 #       uses: 0019-KDU/idp-platform/.github/workflows/ecs-service.yml@main
-#       with: { service-name: my-service }
+#       with: { service-name: my-service, language: node, postgres: true }
+#
+# Service repo contract: infra/shared (ECR repo, output repository_url),
+# infra/app (+ env/<env>.tfvars; outputs url, deployment_strategy).
 # =============================================================================
 name: ecs-service pipeline
 
@@ -23,32 +24,41 @@ on:
   workflow_call:
     inputs:
       service-name:
-        description: "Service name (same as in infra/main.tf)"
         required: true
         type: string
       language:
         description: "node | python"
         type: string
         default: node
+      test-command:
+        description: "Overrides the default test command (node: npm test, python: python -m pytest -q)"
+        type: string
+        default: ""
+      postgres:
+        description: "Start a PostgreSQL 17 service container for the tests (DB_* env vars are set)"
+        type: boolean
+        default: false
       node-version:
         type: string
         default: "24"
       python-version:
         type: string
         default: "3.13"
+      enable-staging:
+        type: boolean
+        default: true
+      enable-prod:
+        type: boolean
+        default: true
+      aws-account-id:
+        type: string
+        default: "697502032879"
       aws-region:
         type: string
         default: ap-south-1
-      aws-role-arn:
-        description: "IAM role assumed via OIDC (created by infra/platform)"
-        type: string
-        default: arn:aws:iam::697502032879:role/devops94-idp-github-actions
       terraform-version:
         type: string
         default: 1.16.3
-    outputs:
-      dev-url:
-        value: ${{ jobs.deploy-dev.outputs.url }}
 
 env:
   TRIVY_VERSION: 0.74.0
@@ -57,10 +67,34 @@ env:
 jobs:
   # ---------------------------------------------------------------------------
   test:
-    name: Unit tests
+    name: Tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    services:
+      postgres:
+        # empty image = no service container
+        image: ${{ inputs.postgres && 'postgres:17-alpine' || '' }}
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_NAME: app
+      DB_USER: app
+      DB_PASSWORD: app
+      DB_SSL: "false"
+      LANGUAGE: ${{ inputs.language }}
+      TEST_COMMAND: ${{ inputs.test-command }}
     steps:
       - uses: actions/checkout@v7
 
@@ -76,19 +110,16 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        env:
-          LANGUAGE: ${{ inputs.language }}
         run: |
           case "$LANGUAGE" in
-            node)   if [ -f package-lock.json ]; then npm ci; else echo "no package-lock.json, nothing to install"; fi ;;
+            node)   if [ -f package-lock.json ]; then npm ci; else echo "no package-lock.json"; fi ;;
             python) pip install -r requirements.txt -r requirements-dev.txt ;;
             *)      echo "::error::unsupported language '$LANGUAGE' (use node or python)"; exit 1 ;;
           esac
 
       - name: Run tests
-        env:
-          LANGUAGE: ${{ inputs.language }}
         run: |
+          if [ -n "$TEST_COMMAND" ]; then eval "$TEST_COMMAND"; exit $?; fi
           case "$LANGUAGE" in
             node)   npm test ;;
             python) python -m pytest -q ;;
@@ -103,7 +134,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # full history: Gitleaks checks every commit, not just the latest
+          fetch-depth: 0
 
       - name: Gitleaks, secrets in git history (blocking)
         run: |
@@ -116,102 +147,110 @@ jobs:
             --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed \
             --exit-code 1 --no-progress /src
 
-      - name: Trivy, Dockerfile + Terraform misconfigurations (report only, for now)
-        # Guardrail rollout: warn first, measure, then make it blocking (exit-code 1).
+      - name: Trivy, Dockerfile + Terraform misconfigurations (report only)
         run: |
           docker run --rm -v "$PWD:/src" "aquasec/trivy:${TRIVY_VERSION}" config \
             --severity MEDIUM,HIGH,CRITICAL --exit-code 0 /src
 
   # ---------------------------------------------------------------------------
-  deploy-dev:
-    name: Build, scan image, deploy to dev
+  build:
+    name: Build once, scan, push to ECR
     needs: [test, scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment:
-      name: dev # shows up under the repo's "Deployments"; OIDC sub = repo:<owner>/<repo>:environment:dev
-      url: ${{ steps.smoke.outputs.url }}
-    concurrency:
-      group: deploy-${{ inputs.service-name }}-dev
-      cancel-in-progress: false # never kill a running terraform apply
     permissions:
       contents: read
-      id-token: write # allows requesting the OIDC token for AWS
+      id-token: write # OIDC -> devops94-idp-build (main branch only, ECR only)
     outputs:
-      url: ${{ steps.smoke.outputs.url }}
-    defaults:
-      run:
-        working-directory: infra
+      tag: ${{ steps.build.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
 
-      - name: Log in to AWS with OIDC (no stored keys)
-        uses: aws-actions/configure-aws-credentials@v6
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ inputs.aws-role-arn }}
+          role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/devops94-idp-build
           aws-region: ${{ inputs.aws-region }}
 
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ inputs.terraform-version }}
-          terraform_wrapper: false # plain stdout, so `terraform output -raw` works in scripts
+          terraform_wrapper: false
 
-      - name: Terraform init
-        run: terraform init -input=false
-
-      - name: Ensure the image repository exists (bootstrap, no-op after the first run)
+      - name: Ensure the image repository (infra/shared)
+        working-directory: infra/shared
         run: |
-          terraform apply -input=false -auto-approve \
-            -target=aws_ecr_repository.this -target=aws_ecr_lifecycle_policy.this \
-            -var image_tag=bootstrap
+          terraform init -input=false
+          terraform apply -input=false -auto-approve -no-color
 
-      - name: Log in to ECR
-        uses: aws-actions/amazon-ecr-login@v2
+      - uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build image
         id: build
         run: |
           TAG="sha-${GITHUB_SHA::7}"
-          IMAGE="$(terraform output -raw ecr_repository_url):${TAG}"
-          # --provenance/--sbom=false: push ONE plain manifest per tag so ECR scanning
-          # and the lifecycle policy see exactly one image per build.
+          REPO="$(terraform -chdir=infra/shared output -raw repository_url)"
           docker build --provenance=false --sbom=false \
             --label org.opencontainers.image.revision="${GITHUB_SHA}" \
             --label org.opencontainers.image.source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
-            -t "${IMAGE}" ..
+            -t "${REPO}:${TAG}" .
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "image=${REPO}:${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Trivy, scan the built image (blocking on CRITICAL with a fix)
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "aquasec/trivy:${TRIVY_VERSION}" image \
             --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress "${{ steps.build.outputs.image }}"
 
-      - name: Push image (tags are immutable, so skip if this commit was already pushed)
+      - name: Push (immutable tags; skip if this commit was already pushed)
         run: |
-          REPO="$(terraform output -raw ecr_repository_url)"
-          if aws ecr describe-images --repository-name "${REPO##*/}" --image-ids imageTag="${{ steps.build.outputs.tag }}" >/dev/null 2>&1; then
-            echo "Image ${{ steps.build.outputs.tag }} already in ECR, not pushing again"
+          REPO_NAME="devops94-idp-svc-${{ inputs.service-name }}"
+          if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="${{ steps.build.outputs.tag }}" >/dev/null 2>&1; then
+            echo "already in ECR"
           else
             docker push "${{ steps.build.outputs.image }}"
           fi
 
-      - name: Deploy to ECS (terraform apply waits until healthy; ECS rolls back on failure)
-        run: terraform apply -input=false -auto-approve -var image_tag="${{ steps.build.outputs.tag }}"
+  # ---------------------------------------------------------------------------
+  dev:
+    needs: build
+    uses: 0019-KDU/idp-platform/.github/workflows/ecs-deploy.yml@main
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      service-name: ${{ inputs.service-name }}
+      environment: dev
+      image-tag: ${{ needs.build.outputs.tag }}
+      aws-account-id: ${{ inputs.aws-account-id }}
+      aws-region: ${{ inputs.aws-region }}
+      terraform-version: ${{ inputs.terraform-version }}
 
-      - name: Smoke test through the load balancer
-        id: smoke
-        run: |
-          URL="$(terraform output -raw dev_url)"
-          echo "url=${URL}" >> "$GITHUB_OUTPUT"
-          for i in $(seq 1 12); do
-            if curl -fsS "${URL}health"; then echo; break; fi
-            [ "$i" = 12 ] && { echo "health check failed"; exit 1; }
-            sleep 5
-          done
-          curl -fsS "${URL}" | tee /tmp/body.json; echo
-          {
-            echo "### :rocket: ${{ inputs.service-name }} deployed to **dev**"
-            echo "- Image: \`${{ steps.build.outputs.image }}\`"
-            echo "- URL: ${URL}"
-          } >> "$GITHUB_STEP_SUMMARY"
+  staging:
+    needs: [build, dev]
+    if: inputs.enable-staging
+    uses: 0019-KDU/idp-platform/.github/workflows/ecs-deploy.yml@main
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      service-name: ${{ inputs.service-name }}
+      environment: staging
+      image-tag: ${{ needs.build.outputs.tag }}
+      aws-account-id: ${{ inputs.aws-account-id }}
+      aws-region: ${{ inputs.aws-region }}
+      terraform-version: ${{ inputs.terraform-version }}
+
+  prod:
+    needs: [build, staging]
+    if: inputs.enable-prod
+    uses: 0019-KDU/idp-platform/.github/workflows/ecs-deploy.yml@main
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      service-name: ${{ inputs.service-name }}
+      environment: prod # GitHub Environment with required reviewers = approval button
+      image-tag: ${{ needs.build.outputs.tag }}
+      aws-account-id: ${{ inputs.aws-account-id }}
+      aws-region: ${{ inputs.aws-region }}
+      terraform-version: ${{ inputs.terraform-version }}

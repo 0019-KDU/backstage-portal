@@ -34,6 +34,12 @@ spec:
           ui:options:
             catalogFilter:
               kind: Group
+        environment:
+          title: Environment
+          type: string
+          description: Which environment's private network the resource lives in.
+          default: dev
+          enum: [dev, staging, prod]
         component:
           title: Used by service (optional)
           type: string
@@ -60,6 +66,7 @@ spec:
           component: ${{ parameters.component }}
           requester: ${{ user.entityRef }}
           type: s3-bucket
+          environment: ${{ parameters.environment }}
           versioning: ${{ parameters.versioning }}
     - id: pr
       name: Open a pull request for review
@@ -76,6 +83,7 @@ spec:
           |---|---|
           | Name | `${{ parameters.name }}` |
           | Purpose | ${{ parameters.description }} |
+          | Environment | `${{ parameters.environment }}` |
           | Owner | `${{ parameters.owner }}` |
           | Used by | `${{ parameters.component or '-' }}` |
           | Requested by | `${{ user.entityRef }}` |

@@ -35,6 +35,12 @@ spec:
           ui:options:
             catalogFilter:
               kind: Group
+        environment:
+          title: Environment
+          type: string
+          description: Which environment's private network the resource lives in.
+          default: dev
+          enum: [dev, staging, prod]
         component:
           title: Used by service (optional)
           type: string
@@ -73,6 +79,7 @@ spec:
           component: ${{ parameters.component }}
           requester: ${{ user.entityRef }}
           type: rds-postgres
+          environment: ${{ parameters.environment }}
           instanceClass: ${{ parameters.instanceClass }}
           storage: ${{ parameters.storage }}
     - id: pr
@@ -90,6 +97,7 @@ spec:
           |---|---|
           | Name | `${{ parameters.name }}` |
           | Purpose | ${{ parameters.description }} |
+          | Environment | `${{ parameters.environment }}` |
           | Owner | `${{ parameters.owner }}` |
           | Used by | `${{ parameters.component or '-' }}` |
           | Requested by | `${{ user.entityRef }}` |

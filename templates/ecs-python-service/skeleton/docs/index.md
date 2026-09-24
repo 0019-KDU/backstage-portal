@@ -7,8 +7,8 @@ Created with the **DevOps94 IDP golden path** and running on
 
 | | |
 |---|---|
-| Dev URL | <http://devops94-idp-alb-1896325251.ap-south-1.elb.amazonaws.com/dev/${{ values.name }}/> |
-| Health check | `GET /dev/${{ values.name }}/health` → `{"status":"ok"}` |
+| Environments | dev → staging → prod (see catalog links); prod deploys after approval with blue/green |
+| Health check | `GET /${{ values.name }}/health` → `{"status":"ok"}` |
 | Runtime | ECS Fargate (Spot in dev), 0.25 vCPU / 512 MiB, port 8080 |
 | Image registry | ECR `devops94-idp-svc-${{ values.name }}` (immutable tags `sha-<commit>`) |
 

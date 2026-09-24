@@ -16,3 +16,4 @@ jobs:
     uses: 0019-KDU/idp-platform/.github/workflows/ecs-service.yml@main
     with:
       service-name: ${{ values.name }}
+      language: node

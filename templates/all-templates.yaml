@@ -7,6 +7,7 @@ metadata:
   description: DevOps94 IDP golden paths and self-service resources
 spec:
   targets:
+    - ./ecs-nestjs-service/template.yaml
     - ./ecs-nodejs-service/template.yaml
     - ./ecs-python-service/template.yaml
     - ./rds-postgres/template.yaml

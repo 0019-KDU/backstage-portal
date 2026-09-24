@@ -30,6 +30,7 @@ provider "aws" {
 
 module "this" {
   source         = "git::https://github.com/0019-KDU/idp-platform.git//infra/modules/ec2-instance?ref=main"
+  environment    = "${{ values.environment }}"
   name           = "${{ values.name }}"
   instance_type  = "${{ values.instanceType }}"
   root_volume_gb = ${{ values.rootVolume }}

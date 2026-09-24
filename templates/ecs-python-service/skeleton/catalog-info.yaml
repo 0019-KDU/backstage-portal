@@ -10,20 +10,21 @@ metadata:
     backstage.io/techdocs-ref: dir:.
     # Costs tab: everything tagged component=<service> (ECS, ECR, logs, and linked databases)
     aws.amazon.com/cost-insights-tags: component=${{ values.name }}
-    aws.amazon.com/amazon-ecs-service-arn: arn:aws:ecs:ap-south-1:697502032879:service/devops94-idp-cluster/${{ values.name }}-dev
+    # ECS tab: the production service (blue/green, autoscaling)
+    aws.amazon.com/amazon-ecs-service-arn: arn:aws:ecs:ap-south-1:697502032879:service/devops94-idp-prod-cluster/${{ values.name }}
   tags:
     - python
     - aws-ecs
   links:
-    - url: http://devops94-idp-alb-1896325251.ap-south-1.elb.amazonaws.com/dev/${{ values.name }}/
-      title: Dev environment
+    - url: http://devops94-idp-dev-alb-754517378.ap-south-1.elb.amazonaws.com/${{ values.name }}/
+      title: dev
       icon: web
-    - url: https://ap-south-1.console.aws.amazon.com/cloudwatch/home?region=ap-south-1#logsV2:log-groups/log-group/$252Fecs$252Fdevops94-idp-svc-${{ values.name }}-dev
-      title: Logs (CloudWatch)
-      icon: dashboard
-    - url: https://ap-south-1.console.aws.amazon.com/ecs/v2/clusters/devops94-idp-cluster/services/${{ values.name }}-dev/health?region=ap-south-1
-      title: ECS service (AWS console)
-      icon: cloud
+    - url: http://devops94-idp-staging-alb-575975725.ap-south-1.elb.amazonaws.com/${{ values.name }}/
+      title: staging
+      icon: web
+    - url: http://devops94-idp-prod-alb-793088738.ap-south-1.elb.amazonaws.com/${{ values.name }}/
+      title: prod
+      icon: web
 spec:
   type: service
   lifecycle: experimental
