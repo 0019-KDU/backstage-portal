@@ -66,4 +66,8 @@ COPY --chown=node:node catalog ./catalog
 COPY --chown=node:node packages/backend/dist/bundle.tar.gz app-config*.yaml ./
 RUN tar xzf bundle.tar.gz && rm bundle.tar.gz
 
+# Persistent TechDocs output (a Docker volume is mounted here; created as `node` so the
+# volume inherits the right owner on first mount)
+RUN mkdir -p /app/techdocs-site
+
 CMD ["node", "packages/backend", "--config", "app-config.yaml", "--config", "app-config.production.yaml"]

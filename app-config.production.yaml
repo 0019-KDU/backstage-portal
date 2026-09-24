@@ -94,9 +94,9 @@ catalog:
     - type: url
       target: https://github.com/0019-KDU/reference-api/blob/main/catalog-info.yaml
 
-# TechDocs: build in the container (no Docker available inside it) and publish to the
-# writable tmpfs (/tmp); docs are rebuilt on demand after a restart.
-# Production target: build in CI and publish to S3 (awsS3 publisher).
+# TechDocs: build in the container (no Docker available inside it) on first view and
+# publish to a persistent Docker volume, so built docs survive container restarts
+# (rebuilt only when the docs change). Production target: build in CI, publish to S3.
 techdocs:
   builder: 'local'
   generator:
@@ -104,7 +104,7 @@ techdocs:
   publisher:
     type: 'local'
     local:
-      publishDirectory: /tmp/techdocs
+      publishDirectory: /app/techdocs-site
 
 # Cost Insights (page /cost-insights + "Costs" tab on catalog entities).
 # Data: AWS Cost Explorer via @aws/cost-insights-plugin-for-backstage-backend, using the

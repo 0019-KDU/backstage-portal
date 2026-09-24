@@ -23,6 +23,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    volumes:
+      - techdocs-site:/app/techdocs-site # built TechDocs, kept across restarts
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -44,3 +46,6 @@ services:
       options:
         max-size: 20m
         max-file: "5"
+
+volumes:
+  techdocs-site:
