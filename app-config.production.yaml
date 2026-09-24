@@ -90,9 +90,7 @@ catalog:
       rules:
         - allow: [Resource]
 
-    # Existing services (services created by the template register themselves)
-    - type: url
-      target: https://github.com/0019-KDU/reference-api/blob/main/catalog-info.yaml
+    # Services register themselves when created from a template (catalog:register step).
 
 # TechDocs: build in the container (no Docker available inside it) on first view and
 # publish to a persistent Docker volume, so built docs survive container restarts
