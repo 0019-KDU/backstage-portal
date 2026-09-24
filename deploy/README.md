@@ -25,7 +25,7 @@ yarn install --immutable && yarn tsc && yarn build:backend
 TAG=$(date +%Y%m%d)-$(git rev-parse --short HEAD)
 docker build . -f packages/backend/Dockerfile -t backstage-devops94:$TAG -t backstage-devops94:latest
 docker compose -f deploy/docker-compose.yml up -d
-deploy/scripts/healthcheck.sh --insecure https://13.235.73.46   # self-signed; drop --insecure with a real domain
+deploy/scripts/healthcheck.sh --insecure https://52.66.252.27   # self-signed; drop --insecure with a real domain
 ```
 
 Rollback: `docker tag backstage-devops94:<previous-tag> backstage-devops94:latest && docker compose -f deploy/docker-compose.yml up -d`.
@@ -52,7 +52,7 @@ Container logs are rotated by Docker (5 × 20 MB). Nginx logs by logrotate.
 ## Health
 
 ```bash
-deploy/scripts/healthcheck.sh --insecure https://13.235.73.46   # self-signed; drop --insecure with a real domain
+deploy/scripts/healthcheck.sh --insecure https://52.66.252.27   # self-signed; drop --insecure with a real domain
 curl -s http://127.0.0.1:7007/.backstage/health/v1/readiness   # official root health service
 docker inspect -f '{{.State.Health.Status}}' backstage
 pg_isready -h 127.0.0.1

@@ -25,7 +25,7 @@ Developer ─► Backstage "Create" (name, description, team)
 
 | What | URL |
 |---|---|
-| Backstage | https://13.235.73.46 (self-signed certificate: Advanced → Proceed) |
+| Backstage | https://52.66.252.27 (self-signed certificate: Advanced → Proceed) |
 | Services (dev) | http://devops94-idp-alb-1896325251.ap-south-1.elb.amazonaws.com/dev/&lt;service&gt;/ |
 | Reference service | …/dev/reference-api/ |
 | Golden-path pipeline | https://github.com/0019-KDU/idp-platform/blob/main/.github/workflows/ecs-service.yml |
