@@ -123,7 +123,10 @@ aws:
       costMetric: UnblendedCost
     cache:
       enable: true
-      defaultTtl: 86400000 # 24h: Cost Explorer charges $0.01 per API request and data updates ~daily
+      # 6h: Cost Explorer charges $0.01 per request and updates a few times a day.
+      # Kept short on purpose: the plugin also caches ERROR responses (e.g. an entity
+      # queried before its annotation was loaded), so a bad entry heals within 6h.
+      defaultTtl: 21600000
     entityGroups:
       # Team page: cost per service the team owns, and per AWS product (ECS, RDS, ...)
       - kind: Group
