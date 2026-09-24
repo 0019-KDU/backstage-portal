@@ -1,23 +1,15 @@
 # Module: ecs-service
 
-The golden-path infrastructure contract for ONE service in ONE environment on the
-shared DevOps94 IDP platform (`infra/platform`).
+One service in ONE environment (dev | staging | prod) on that environment's platform
+(`infra/modules/platform-env`): log group · execution + task roles · target group(s) ·
+path rule `/<name>/*` on the environment's ALB · Fargate task definition · ECS service ·
+autoscaling (CPU + memory target tracking).
 
-Creates: CloudWatch log group · execution + task IAM roles · ALB target group ·
-path-based listener rule `/<environment>/<name>/*` · Fargate task definition ·
-ECS service (deployment circuit breaker with automatic rollback).
+| | ROLLING (dev default) | BLUE_GREEN (staging/prod) |
+|---|---|---|
+| How | Replace tasks gradually | Start the complete new version, switch traffic, keep the old one for `bake_time_minutes` |
+| Rollback | Circuit breaker | Circuit breaker + instant switch back during bake time |
+| Cost during deploy | +1 task | Double tasks for the bake time |
 
-It does NOT create the ECR repository (one repo is shared by all environments of a
-service; the calling stack owns it) and never touches the platform itself.
-
-Contract for the container: listen on port 8080, serve `GET <BASE_PATH>/health`
-with HTTP 200, log to stdout. `BASE_PATH` is injected (`/<environment>/<name>`).
-
-```hcl
-module "dev" {
-  source      = "git::https://github.com/0019-KDU/idp-platform.git//infra/modules/ecs-service?ref=main"
-  name        = "reference-api"
-  environment = "dev"
-  image       = "${aws_ecr_repository.this.repository_url}:${var.image_tag}"
-}
-```
+Container contract: port 8080, `GET <BASE_PATH>/health` → 200, JSON logs to stdout.
+Secrets (`secrets` + `secret_arns`) are injected by ECS at start from Secrets Manager.

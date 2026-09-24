@@ -2,16 +2,34 @@
 # rds-postgres — a private, encrypted PostgreSQL database for one team/service.
 # Guardrails (not configurable by the requester):
 #   private subnets only · not publicly accessible · storage encrypted
-#   · reachable only from ECS service tasks (security group) · password never in
+#   · reachable only from ECS tasks of the SAME environment (env db security group)
+#   · password never in
 #   Terraform/Git: RDS generates it and stores it in Secrets Manager
 #   · automated backups (point-in-time recovery) · minor version auto-upgrades
 # ---------------------------------------------------------------------------
 variable "name" {
-  description = "Database name (becomes devops94-idp-res-<name>)"
+  description = "Database name (becomes devops94-idp-<env>-<kind>-<name>)"
   type        = string
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]{1,20}[a-z0-9]$", var.name))
     error_message = "name: 3-22 chars, lowercase letters, digits and '-', starts with a letter."
+  }
+}
+variable "environment" {
+  description = "dev | staging | prod: which environment's network this lives in"
+  type        = string
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "environment must be dev, staging or prod."
+  }
+}
+variable "kind" {
+  description = "res = requested via self-service; svc = owned by a golden-path service"
+  type        = string
+  default     = "res"
+  validation {
+    condition     = contains(["res", "svc"], var.kind)
+    error_message = "kind must be res or svc."
   }
 }
 variable "instance_class" {
@@ -54,13 +72,14 @@ variable "tags" {
 }
 
 locals {
-  full_name = "${var.platform_name}-res-${var.name}"
-  db_name   = replace(var.name, "-", "_")
-  tags      = merge(var.tags, { resource = var.name, resource-type = "rds-postgres" })
+  env_prefix = "${var.platform_name}-${var.environment}"
+  full_name  = "${local.env_prefix}-${var.kind}-${var.name}"
+  db_name    = replace(var.name, "-", "_")
+  tags       = merge(var.tags, { resource = var.name, resource-type = "rds-postgres", environment = var.environment })
 }
 
 data "aws_vpc" "platform" {
-  tags = { Name = "${var.platform_name}-vpc" }
+  tags = { Name = "${local.env_prefix}-vpc" }
 }
 data "aws_subnets" "private" {
   filter {
@@ -69,31 +88,17 @@ data "aws_subnets" "private" {
   }
   tags = { tier = "private" }
 }
-data "aws_security_group" "ecs_tasks" {
+# Shared per-environment database security group (platform-env): PostgreSQL only
+# from that environment's ECS tasks.
+data "aws_security_group" "db" {
   vpc_id = data.aws_vpc.platform.id
-  name   = "${var.platform_name}-ecs-tasks"
+  name   = "${local.env_prefix}-db"
 }
 
 resource "aws_db_subnet_group" "this" {
   name       = local.full_name
   subnet_ids = data.aws_subnets.private.ids
   tags       = local.tags
-}
-
-resource "aws_security_group" "db" {
-  name        = "${local.full_name}-db"
-  description = "PostgreSQL ${var.name}: only ECS service tasks may connect"
-  vpc_id      = data.aws_vpc.platform.id
-  tags        = merge(local.tags, { Name = "${local.full_name}-db" })
-}
-
-resource "aws_vpc_security_group_ingress_rule" "from_ecs" {
-  security_group_id            = aws_security_group.db.id
-  description                  = "PostgreSQL from ECS service tasks"
-  referenced_security_group_id = data.aws_security_group.ecs_tasks.id
-  ip_protocol                  = "tcp"
-  from_port                    = 5432
-  to_port                      = 5432
 }
 
 resource "aws_db_instance" "this" {
@@ -108,7 +113,7 @@ resource "aws_db_instance" "this" {
   username                    = "app_admin"
   manage_master_user_password = true # generated + stored in Secrets Manager
   db_subnet_group_name        = aws_db_subnet_group.this.name
-  vpc_security_group_ids      = [aws_security_group.db.id]
+  vpc_security_group_ids      = [data.aws_security_group.db.id]
   publicly_accessible         = false
   multi_az                    = false # demo cost; production: true
   backup_retention_period     = var.backup_retention_days

@@ -16,7 +16,7 @@ terraform {
   # "key" is the path of this stack's state file inside the bucket.
   backend "s3" {
     bucket       = "devops94-idp-tfstate-697502032879"
-    key          = "platform/terraform.tfstate"
+    key          = "account/terraform.tfstate"
     region       = "ap-south-1"
     encrypt      = true
     use_lockfile = true # writes a .tflock object so two applies can't run at once
@@ -30,7 +30,7 @@ provider "aws" {
   default_tags {
     tags = {
       project    = "devops94-idp"
-      stack      = "platform"
+      stack      = "account"
       managed-by = "terraform"
     }
   }

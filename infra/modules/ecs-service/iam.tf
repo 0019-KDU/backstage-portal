@@ -1,7 +1,6 @@
 # ---------------------------------------------------------------------------
-# iam.tf — two roles per service (a common point of confusion):
-#   execution role: used by ECS ITSELF to pull the image and write logs
-#   task role:      used by YOUR CODE at runtime (empty = app has no AWS access)
+# execution role: used by ECS to pull the image, write logs, read secrets at start
+# task role:      used by YOUR CODE at runtime (empty = no AWS access)
 # ---------------------------------------------------------------------------
 data "aws_iam_policy_document" "ecs_tasks_assume" {
   statement {
@@ -19,10 +18,25 @@ resource "aws_iam_role" "execution" {
   tags               = local.tags
 }
 
-# AWS-managed policy: ECR pull + CloudWatch Logs write
 resource "aws_iam_role_policy_attachment" "execution" {
   role       = aws_iam_role.execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# Only the listed secrets, only read (e.g. the RDS-managed database password)
+data "aws_iam_policy_document" "read_secrets" {
+  count = length(var.secret_arns) > 0 ? 1 : 0
+  statement {
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = var.secret_arns
+  }
+}
+
+resource "aws_iam_role_policy" "read_secrets" {
+  count  = length(var.secret_arns) > 0 ? 1 : 0
+  name   = "read-secrets"
+  role   = aws_iam_role.execution.id
+  policy = data.aws_iam_policy_document.read_secrets[0].json
 }
 
 resource "aws_iam_role" "task" {

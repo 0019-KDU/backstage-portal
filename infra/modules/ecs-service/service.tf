@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# service.tf — what runs: task definition (the "recipe") + service (keeps N copies running)
+# service.tf — task definition (the recipe) + service (keeps it running)
 # ---------------------------------------------------------------------------
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/ecs/${local.full_name}"
@@ -25,15 +25,18 @@ resource "aws_ecs_task_definition" "this" {
     name                   = "app"
     image                  = var.image
     essential              = true
-    readonlyRootFilesystem = true # the app cannot modify its own filesystem
+    readonlyRootFilesystem = true
     portMappings           = [{ containerPort = var.container_port, protocol = "tcp" }]
 
     environment = [for k, v in merge({
       PORT         = tostring(var.container_port)
-      BASE_PATH    = local.base_path
+      BASE_PATH    = local.path
       SERVICE_NAME = var.name
       ENVIRONMENT  = var.environment
     }, var.environment_variables) : { name = k, value = v }]
+
+    # Injected by ECS at start from Secrets Manager; never in code, image or Terraform state
+    secrets = [for k, v in var.secrets : { name = k, valueFrom = v }]
 
     logConfiguration = {
       logDriver = "awslogs"
@@ -49,10 +52,10 @@ resource "aws_ecs_task_definition" "this" {
 }
 
 resource "aws_ecs_service" "this" {
-  name            = "${var.name}-${var.environment}"
-  cluster         = data.aws_ecs_cluster.platform.arn
+  name            = var.name
+  cluster         = data.aws_ecs_cluster.env.arn
   task_definition = aws_ecs_task_definition.this.arn
-  desired_count   = var.desired_count
+  desired_count   = var.min_tasks
 
   capacity_provider_strategy {
     capacity_provider = local.use_spot ? "FARGATE_SPOT" : "FARGATE"
@@ -60,34 +63,50 @@ resource "aws_ecs_service" "this" {
   }
 
   network_configuration {
-    subnets          = data.aws_subnets.public.ids
+    subnets          = data.aws_subnets.public.ids # 2 AZs
     security_groups  = [data.aws_security_group.tasks.id]
-    assign_public_ip = true # no NAT in the demo VPC; SG still blocks inbound except from ALB
+    assign_public_ip = true # no NAT in the demo VPC; inbound still only from the ALB
   }
 
   load_balancer {
-    target_group_arn = aws_lb_target_group.this.arn
+    target_group_arn = aws_lb_target_group.blue.arn
     container_name   = "app"
     container_port   = var.container_port
+
+    dynamic "advanced_configuration" {
+      for_each = local.blue_green ? [1] : []
+      content {
+        alternate_target_group_arn = aws_lb_target_group.green[0].arn
+        production_listener_rule   = local.listener_rule_arn
+        role_arn                   = data.aws_iam_role.ecs_infrastructure[0].arn
+      }
+    }
   }
 
-  # Rolling deploy: start new tasks first (200%), never drop below 100% healthy
+  # ROLLING: replace tasks gradually. BLUE_GREEN: start the full new version,
+  # switch traffic, keep the old one for bake_time minutes (instant rollback).
+  deployment_configuration {
+    strategy             = var.deployment_strategy
+    bake_time_in_minutes = local.blue_green ? var.bake_time_minutes : null
+  }
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
-  health_check_grace_period_seconds  = 30
+  health_check_grace_period_seconds  = 60
 
-  # If new tasks keep failing, ECS stops the deploy and rolls back automatically
+  # New tasks keep failing -> stop and roll back automatically
   deployment_circuit_breaker {
     enable   = true
     rollback = true
   }
 
-  # `terraform apply` waits until the deploy is healthy (or fails), so CI shows the truth
-  wait_for_steady_state = true
-
+  wait_for_steady_state   = true # CI waits for the real outcome
   enable_ecs_managed_tags = true
   propagate_tags          = "SERVICE"
   tags                    = local.tags
 
-  depends_on = [aws_lb_listener_rule.this] # target group must be attached to the ALB first
+  lifecycle {
+    ignore_changes = [desired_count] # owned by autoscaling
+  }
+
+  depends_on = [aws_lb_listener_rule.rolling, aws_lb_listener_rule.blue_green]
 }

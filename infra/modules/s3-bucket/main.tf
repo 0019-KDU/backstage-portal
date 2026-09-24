@@ -5,11 +5,28 @@
 #   30 days · incomplete uploads cleaned up · ACLs disabled (bucket owner enforced)
 # ---------------------------------------------------------------------------
 variable "name" {
-  description = "Bucket purpose name (bucket becomes devops94-idp-res-<name>-<account-id>)"
+  description = "Bucket purpose name (bucket becomes devops94-idp-<env>-<kind>-<name>-<account-id>)"
   type        = string
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]{1,20}[a-z0-9]$", var.name))
     error_message = "name: 3-22 chars, lowercase letters, digits and '-', starts with a letter."
+  }
+}
+variable "environment" {
+  description = "dev | staging | prod: which environment's network this lives in"
+  type        = string
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "environment must be dev, staging or prod."
+  }
+}
+variable "kind" {
+  description = "res = requested via self-service; svc = owned by a golden-path service"
+  type        = string
+  default     = "res"
+  validation {
+    condition     = contains(["res", "svc"], var.kind)
+    error_message = "kind must be res or svc."
   }
 }
 variable "versioning" {
@@ -33,8 +50,8 @@ variable "tags" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  bucket = "${var.platform_name}-res-${var.name}-${data.aws_caller_identity.current.account_id}"
-  tags   = merge(var.tags, { resource = var.name, resource-type = "s3-bucket" })
+  bucket = "${var.platform_name}-${var.environment}-${var.kind}-${var.name}-${data.aws_caller_identity.current.account_id}"
+  tags   = merge(var.tags, { resource = var.name, resource-type = "s3-bucket", environment = var.environment })
 }
 
 resource "aws_s3_bucket" "this" {

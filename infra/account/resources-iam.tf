@@ -4,14 +4,13 @@
 #
 #   Pull request  ─► devops94-idp-resources-plan   read-only: `terraform plan`
 #   Merge to main ─► devops94-idp-resources-apply  create/change/delete, ONLY
-#                    resources named devops94-idp-res-* (RDS, S3, EC2 + its role)
+#                    resources named devops94-idp-<env>-res-* (RDS, S3, EC2 + its role)
 #
 # A PR can never change AWS: only code that was reviewed and merged gets the apply role.
 # ---------------------------------------------------------------------------
 locals {
-  res_prefix     = "${var.name}-res"
+  res_prefix     = "${var.name}-*-res"
   resources_repo = "repo:${var.github_owner}@${var.github_owner_id}/platform-resources@*"
-  state_bucket   = "devops94-idp-tfstate-${local.account_id}"
 }
 
 data "aws_iam_policy_document" "resources_plan_trust" {
@@ -62,7 +61,7 @@ resource "aws_iam_role" "resources_plan" {
 
 resource "aws_iam_role" "resources_apply" {
   name               = "${var.name}-resources-apply"
-  description        = "terraform apply for platform-resources main branch (devops94-idp-res-* only)"
+  description        = "terraform apply for platform-resources main branch (devops94-idp-<env>-res-* only)"
   assume_role_policy = data.aws_iam_policy_document.resources_apply_trust.json
 }
 
@@ -243,3 +242,6 @@ resource "aws_iam_role_policy" "resources_apply" {
   role   = aws_iam_role.resources_apply.id
   policy = data.aws_iam_policy_document.resources_write.json
 }
+
+output "resources_plan_role_arn" { value = aws_iam_role.resources_plan.arn }
+output "resources_apply_role_arn" { value = aws_iam_role.resources_apply.arn }
