@@ -1,1 +1,0 @@
-{"type": "s3", "name": "${{ values.name }}", "access": "${{ values.access }}", "env_prefix": "${{ values.envPrefix }}"}

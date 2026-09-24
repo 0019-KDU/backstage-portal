@@ -1,7 +1,0 @@
-site_name: ${{ values.name }}
-site_description: ${{ values.description | dump }}
-nav:
-  - Overview: index.md
-  - Operations: operations.md
-plugins:
-  - techdocs-core

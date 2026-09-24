@@ -1,9 +1,0 @@
-node_modules/
-.terraform/
-*.tfstate
-*.tfstate.*
-*.tfplan
-__pycache__/
-*.pyc
-.pytest_cache/
-.venv/

@@ -28,8 +28,8 @@ Developer ─► Backstage "Create" (name, description, team)
 | Backstage | https://52.66.252.27 (self-signed certificate: Advanced → Proceed) |
 | Services (dev) | http://devops94-idp-alb-1896325251.ap-south-1.elb.amazonaws.com/dev/&lt;service&gt;/ |
 | Reference service | …/dev/reference-api/ |
-| Golden-path pipeline | https://github.com/0019-KDU/idp-platform/blob/main/.github/workflows/ecs-service.yml |
-| Template source | https://github.com/0019-KDU/idp-platform/tree/main/templates/ecs-nodejs-service |
+| Golden-path pipeline | https://github.com/0019-KDU/platform-golden-paths/blob/main/.github/workflows/ecs-service.yml |
+| Template source | https://github.com/0019-KDU/platform-golden-paths/tree/main/templates |
 
 ## Before every demo (15 min, the day before)
 
@@ -84,12 +84,10 @@ the same path; show its green run and its ECS tab.
 
 ## After the demo
 
-```bash
-cd /opt/backstage/devops94-demo
-deploy/scripts/teardown-service.sh payments-api   # asks you to retype the name
-```
-Then unregister the entity in Backstage and delete (or archive) the GitHub repo, as the
-script prints. Never tear down `reference-api` (the script refuses to).
+Service decommissioning (all environments, its databases and image repository) is not
+automated yet for the per-environment layout: remove the service's resources with its
+environment deploy roles (Terraform destroy per environment, then `infra/shared`), then
+unregister the entity in Backstage and archive the GitHub repository.
 
 ## Cost (ap-south-1, approximate)
 

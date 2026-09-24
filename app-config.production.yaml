@@ -77,10 +77,10 @@ catalog:
       rules:
         - allow: [System]
 
-    # Golden-path + self-service templates, read live from GitHub via one index file
+    # Golden-path + self-service templates (repo platform-golden-paths), read live via one index file
     # (edit/add a template + push = updated in Backstage, no rebuild)
     - type: url
-      target: https://github.com/0019-KDU/idp-platform/blob/main/templates/all-templates.yaml
+      target: https://github.com/0019-KDU/platform-golden-paths/blob/main/templates/all-templates.yaml
       rules:
         - allow: [Location, Template]
 

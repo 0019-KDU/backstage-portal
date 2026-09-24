@@ -1,9 +1,0 @@
-.git
-infra
-tests
-docs
-.github
-__pycache__
-.pytest_cache
-.venv
-*.md

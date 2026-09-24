@@ -17,6 +17,19 @@ Public: 22 (admin), 80 (ACME + redirect), 443.   Private: 7007, 5432.
 | Backups | `backstage-db-backup.timer` → `/var/backups/backstage/*.dump` |
 | GitHub users | `catalog/users.yaml` |
 
+## Repository map (production structure)
+
+| Repository | Contains | Owner |
+|---|---|---|
+| **backstage-portal** (this repo) | Backstage app, its config and deployment (Docker, Nginx, backups) | portal maintainers |
+| [platform-infra](https://github.com/0019-KDU/platform-infra) | AWS account + dev/staging/prod environments, versioned Terraform modules | platform team |
+| [platform-golden-paths](https://github.com/0019-KDU/platform-golden-paths) | reusable CI/CD pipelines + Backstage templates (versioned) | platform team |
+| [platform-resources](https://github.com/0019-KDU/platform-resources) | self-service cloud resources requested in Backstage | platform team reviews |
+| service repos (e.g. [shop-api](https://github.com/0019-KDU/shop-api)) | app code + its own `infra/` + 10-line pipeline pinned to a version | product teams |
+
+Backstage reads templates from `platform-golden-paths/templates/all-templates.yaml` and
+resources from `platform-resources/resources/*/*/*/catalog-info.yaml`.
+
 ## Deploy a new version
 
 ```bash
