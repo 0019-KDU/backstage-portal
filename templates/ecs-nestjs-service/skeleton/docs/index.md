@@ -2,31 +2,32 @@
 
 ${{ values.description }}
 
-TypeScript **NestJS modular monolith** on **AWS ECS Fargate** with **PostgreSQL**, created
-with the DevOps94 IDP golden path.
+| | |
+|---|---|
+| **Type** | TypeScript NestJS **modular monolith** (REST API) |
+| **Owner** | `${{ values.owner }}` |
+| **Runtime** | AWS ECS Fargate, `ap-south-1` |
+| **Database** | PostgreSQL 17 (Amazon RDS), one per environment |
+| **Delivery** | `main` → build once → dev → staging → **approval** → prod |
+| **Source** | <https://github.com/0019-KDU/${{ values.name }}> |
 
-| Environment | URL | Deploys |
-|---|---|---|
-| dev | <http://devops94-idp-dev-alb-754517378.ap-south-1.elb.amazonaws.com/${{ values.name }}/> | every push to `main`, rolling |
-| staging | <http://devops94-idp-staging-alb-575975725.ap-south-1.elb.amazonaws.com/${{ values.name }}/> | automatically after dev, blue/green |
-| prod | <http://devops94-idp-prod-alb-793088738.ap-south-1.elb.amazonaws.com/${{ values.name }}/> | after **approval**, blue/green with 10 min bake time |
+## Environments
 
-## API
+| Environment | URL | Deployment | Capacity |
+|---|---|---|---|
+| dev | <http://devops94-idp-dev-alb-754517378.ap-south-1.elb.amazonaws.com/${{ values.name }}/> | rolling, automatic | 1–2 tasks, Fargate Spot |
+| staging | <http://devops94-idp-staging-alb-575975725.ap-south-1.elb.amazonaws.com/${{ values.name }}/> | blue/green, automatic | 1–2 tasks |
+| prod | <http://devops94-idp-prod-alb-793088738.ap-south-1.elb.amazonaws.com/${{ values.name }}/> | blue/green, **approval required** | 2–6 tasks, 2 AZs |
 
-| Method | Path | |
-|---|---|---|
-| GET | `/` | service, environment, running version |
-| GET | `/health` | liveness (load balancer) |
-| GET | `/ready` | readiness: database reachable |
-| GET/POST | `/products` | products module |
-| GET/POST | `/orders` | orders module (uses products through its service) |
+## Where to look
 
-## Develop locally
-
-```bash
-docker run -d --name pg -e POSTGRES_USER=app -e POSTGRES_PASSWORD=app -e POSTGRES_DB=app -p 5432:5432 postgres:17-alpine
-npm ci
-npm test            # unit tests
-npm run test:e2e    # end-to-end against the local database
-npm run build && npm start
-```
+| I want to… | Go to |
+|---|---|
+| Run it on my laptop | [Getting started](getting-started.md) |
+| Understand the code structure | [Architecture](architecture.md) |
+| Call the API | [API](api.md) |
+| Change a setting or secret | [Configuration](configuration.md) |
+| Change the database schema | [Database](database.md) |
+| Ship a change / roll back | [Deployment](deployment.md) |
+| Handle an incident | [Operations runbook](operations.md) |
+| Know why it is built this way | [Decisions](adr/0001-modular-monolith.md) |

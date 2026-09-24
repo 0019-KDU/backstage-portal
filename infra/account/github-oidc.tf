@@ -80,6 +80,16 @@ data "aws_iam_policy_document" "build" {
     }
   }
   statement {
+    sid       = "TechDocsPublishList"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.techdocs.arn]
+  }
+  statement {
+    sid       = "TechDocsPublish" # pipeline publishes each service's built docs
+    actions   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
+    resources = ["${aws_s3_bucket.techdocs.arn}/*"]
+  }
+  statement {
     sid       = "SharedState"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
     resources = ["arn:aws:s3:::${local.state_bucket}/services/*/shared.tfstate*"]

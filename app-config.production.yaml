@@ -92,17 +92,16 @@ catalog:
 
     # Services register themselves when created from a template (catalog:register step).
 
-# TechDocs: build in the container (no Docker available inside it) on first view and
-# publish to a persistent Docker volume, so built docs survive container restarts
-# (rebuilt only when the docs change). Production target: build in CI, publish to S3.
+# TechDocs, production mode ("recommended deployment"): each service pipeline BUILDS its docs
+# and PUBLISHES them to S3; Backstage only reads them (never builds on a page view).
+# Credentials: the EC2 instance role (s3:GetObject/ListBucket, infra/backstage-iam).
 techdocs:
-  builder: 'local'
-  generator:
-    runIn: 'local'
+  builder: 'external'
   publisher:
-    type: 'local'
-    local:
-      publishDirectory: /app/techdocs-site
+    type: 'awsS3'
+    awsS3:
+      bucketName: devops94-idp-techdocs-697502032879
+      region: ap-south-1
 
 # Cost Insights (page /cost-insights + "Costs" tab on catalog entities).
 # Data: AWS Cost Explorer via @aws/cost-insights-plugin-for-backstage-backend, using the

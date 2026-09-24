@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
 # backstage-iam — what the Backstage server itself may read in AWS.
 # Attached to the EC2 instance role devops94-idp-ec2 (created in the console).
-# Read-only: cost data for Cost Insights and ECS status for the ECS tab.
+# Read-only: cost data (Cost Insights), ECS status (ECS tab), TechDocs (S3).
 # Once the platform is no longer being built from this server, the broad
 # devops94-idp-bootstrap policy can be detached and only this one kept.
 # ---------------------------------------------------------------------------
@@ -42,6 +42,11 @@ data "aws_iam_policy_document" "backstage_read" {
     sid       = "CostInsights" # Cost Explorer has no resource-level permissions
     actions   = ["ce:GetCostAndUsage"]
     resources = ["*"]
+  }
+  statement {
+    sid       = "TechDocsRead" # docs are built + published by CI; Backstage only reads
+    actions   = ["s3:GetObject", "s3:ListBucket"]
+    resources = ["arn:aws:s3:::devops94-idp-techdocs-697502032879", "arn:aws:s3:::devops94-idp-techdocs-697502032879/*"]
   }
   statement {
     sid = "EcsPluginRead" # @aws/amazon-ecs-plugin-for-backstage-backend

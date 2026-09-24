@@ -1,21 +1,48 @@
-# Architecture: modular monolith
+# Architecture
 
-One deployable application, split into **modules** that each own one business capability.
+## Context
 
 ```
-src/modules/
-  products/   entity + table `products` + ProductsService (exported)
-  orders/     entity + table `orders`   + OrdersService  (uses ProductsService)
-  health/     /health, /ready
+ Clients ──HTTP──► AWS ALB (per environment) ──/${{ values.name }}/*──► ECS Fargate tasks (this service)
+                                                                        │
+                                                                        ├─► PostgreSQL (RDS, private subnets, TLS)
+                                                                        └─► CloudWatch Logs
 ```
 
-## Rules that keep it modular
+## Modular monolith
 
-1. A module owns its tables. **No other module queries them**; there are no cross-module foreign keys.
-2. Modules talk only through **exported services** (`exports: [ProductsService]`), never repositories.
-3. New capability = new folder in `src/modules` + a migration.
-4. Migrations must be **backward-compatible** (expand, then contract): during a blue/green deployment
-   the old and the new version run at the same time against the same database.
+One deployable application; each **business capability is a module** with its own code,
+tables and public service.
 
-When one module needs to scale or deploy on its own schedule, its service boundary is
-already clean enough to extract it into a separate service.
+```
+src/
+  main.ts                 bootstrap: base path, JSON logger, graceful shutdown
+  app.module.ts           wires modules + database
+  common/                 cross-cutting: logging, request logging
+  database/               connection settings + migrations
+  modules/
+    health/               /health (liveness), /ready (database), / (info)
+    products/             table products · ProductsService (exported)
+    orders/               table orders   · OrdersService (uses ProductsService)
+```
+
+### Module rules
+
+| Rule | Why |
+|---|---|
+| A module owns its tables; no other module reads or writes them | Modules can change their schema independently |
+| Modules talk through **exported services**, never repositories | One clear, testable contract per module |
+| No database foreign keys across modules (store ids) | Makes a later split into a separate service possible |
+| One folder per capability under `src/modules` | Ownership and code review stay clear as the team grows |
+
+**When to extract a module into its own service:** it needs to scale very differently, it is
+owned by a separate team with its own release cadence, or it has different security/compliance
+needs. Until then, the monolith is cheaper to run and simpler to change
+(see [ADR 0001](adr/0001-modular-monolith.md)).
+
+## Request flow
+
+1. The ALB forwards `/${{ values.name }}/*` to a healthy task (health check: `GET /${{ values.name }}/health`).
+2. NestJS routes under the global prefix `/${{ values.name }}` (from `BASE_PATH`).
+3. Every request except health checks is logged as one JSON line.
+4. Database access through TypeORM; the connection uses TLS verified against the RDS CA bundle.

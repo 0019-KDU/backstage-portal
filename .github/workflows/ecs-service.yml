@@ -3,7 +3,8 @@
 #
 #   test ─┐                                     (pull requests stop here)
 #   scan ─┴─► build ONCE ─► dev ─► staging ─► prod
-#             ECR, scanned   rolling  blue/green  approval + blue/green
+#         │   ECR, scanned   rolling  blue/green  approval + blue/green
+#         └─► docs: build TechDocs in CI, publish to S3 (Backstage only reads them)
 #
 # The same image (sha-<commit>) is promoted; it is never rebuilt per environment.
 #
@@ -59,10 +60,15 @@ on:
       terraform-version:
         type: string
         default: 1.16.3
+      techdocs-bucket:
+        type: string
+        default: devops94-idp-techdocs-697502032879
 
 env:
   TRIVY_VERSION: 0.74.0
   GITLEAKS_VERSION: 8.30.1
+  TECHDOCS_CLI_VERSION: 1.12.0
+  MKDOCS_TECHDOCS_CORE_VERSION: 1.7.1
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -151,6 +157,54 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/src" "aquasec/trivy:${TRIVY_VERSION}" config \
             --severity MEDIUM,HIGH,CRITICAL --exit-code 0 /src
+
+  # ---------------------------------------------------------------------------
+  docs:
+    name: Publish TechDocs
+    needs: [test, scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC -> devops94-idp-build (may publish docs to the TechDocs bucket)
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Skip if the service has no docs
+        id: check
+        run: if [ -f mkdocs.yml ]; then echo "has_docs=true" >> "$GITHUB_OUTPUT"; else echo "no mkdocs.yml, nothing to publish"; fi
+
+      - uses: actions/setup-python@v7
+        if: steps.check.outputs.has_docs == 'true'
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v7
+        if: steps.check.outputs.has_docs == 'true'
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        if: steps.check.outputs.has_docs == 'true'
+        with:
+          role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/devops94-idp-build
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Build docs (MkDocs + techdocs-core, same engine Backstage uses)
+        if: steps.check.outputs.has_docs == 'true'
+        run: |
+          pip install "mkdocs-techdocs-core==${MKDOCS_TECHDOCS_CORE_VERSION}"
+          npx --yes "@techdocs/cli@${TECHDOCS_CLI_VERSION}" generate --no-docker --source-dir . --output-dir ./site
+
+      - name: Publish to S3 (Backstage reads the docs from here)
+        if: steps.check.outputs.has_docs == 'true'
+        env:
+          BUCKET: ${{ inputs.techdocs-bucket }}
+          ENTITY: default/Component/${{ inputs.service-name }}
+        run: |
+          npx --yes "@techdocs/cli@${TECHDOCS_CLI_VERSION}" publish \
+            --publisher-type awsS3 --storage-name "$BUCKET" --entity "$ENTITY" --directory ./site
+          echo "### :books: TechDocs published for \`${{ inputs.service-name }}\`" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
   build:
