@@ -25,6 +25,19 @@ module "db" {
   tags                  = local.tags
 }
 
+# Resources this service uses (requested in Backstage, e.g. an S3 bucket or extra database):
+# one JSON file per resource in bindings/<environment>/, added by the Backstage request.
+locals {
+  binding_dir = "${path.module}/bindings/${var.environment}"
+  bindings    = [for f in fileset(local.binding_dir, "*.json") : jsondecode(file("${local.binding_dir}/${f}"))]
+}
+
+module "bindings" {
+  source      = "git::https://github.com/0019-KDU/idp-platform.git//infra/modules/service-bindings?ref=main"
+  environment = var.environment
+  bindings    = local.bindings
+}
+
 module "service" {
   source      = "git::https://github.com/0019-KDU/idp-platform.git//infra/modules/ecs-service?ref=main"
   name        = local.name
@@ -40,6 +53,7 @@ module "service" {
 
   environment_variables = merge(
     { APP_VERSION = var.image_tag },
+    module.bindings.environment_variables,
     var.use_database ? {
       DB_HOST = module.db[0].endpoint
       DB_PORT = tostring(module.db[0].port)
@@ -48,12 +62,17 @@ module "service" {
       DB_SSL  = "true"
     } : {}
   )
-  secrets     = var.use_database ? { DB_PASSWORD = "${module.db[0].master_user_secret_arn}:password::" } : {}
-  secret_arns = var.use_database ? [module.db[0].master_user_secret_arn] : []
-  tags        = local.tags
+  secrets = merge(
+    var.use_database ? { DB_PASSWORD = "${module.db[0].master_user_secret_arn}:password::" } : {},
+    module.bindings.secrets
+  )
+  secret_arns      = concat(var.use_database ? [module.db[0].master_user_secret_arn] : [], module.bindings.secret_arns)
+  task_policy_json = module.bindings.task_policy_json
+  tags             = local.tags
 }
 
 output "url" { value = module.service.url }
 output "deployment_strategy" { value = module.service.deployment_strategy }
 output "ecs_service_arn" { value = module.service.ecs_service_arn }
+output "bindings" { value = [for b in local.bindings : "${b.type}:${b.name}"] }
 output "database_endpoint" { value = var.use_database ? module.db[0].endpoint : null }

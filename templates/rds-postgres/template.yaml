@@ -41,6 +41,13 @@ spec:
           description: Which environment's private network the resource lives in.
           default: dev
           enum: [dev, staging, prod]
+        connect:
+          title: Connect to the service
+          type: boolean
+          default: true
+          description: >-
+            Also open a pull request in the selected service's repository that gives the
+            service access (and environment variables) in this environment.
         component:
           title: Used by service (optional)
           type: string
@@ -71,7 +78,7 @@ spec:
       action: fetch:template
       input:
         url: ./skeleton
-        targetPath: resources/rds-postgres/${{ parameters.name }}
+        targetPath: resource-pr/resources/rds-postgres/${{ parameters.environment }}/${{ parameters.name }}
         values:
           name: ${{ parameters.name }}
           description: ${{ parameters.description }}
@@ -87,7 +94,8 @@ spec:
       action: publish:github:pull-request
       input:
         repoUrl: github.com?owner=0019-KDU&repo=platform-resources
-        branchName: request/rds-postgres-${{ parameters.name }}
+        branchName: request/rds-postgres-${{ parameters.environment }}-${{ parameters.name }}
+        sourcePath: resource-pr
         title: 'Request: PostgreSQL database "${{ parameters.name }}"'
         commitMessage: 'Request PostgreSQL database ${{ parameters.name }} (via Backstage)'
         description: |
@@ -105,10 +113,43 @@ spec:
 
           **Next:** the pipeline posts the `terraform plan` below as a comment.
           The platform team reviews it; **merging creates the resource in AWS**.
+    - id: binding
+      name: Generate the service binding
+      if: ${{ parameters.connect and parameters.component }}
+      action: fetch:template
+      input:
+        url: ./binding
+        targetPath: service-pr/infra/app/bindings/${{ parameters.environment }}
+        values:
+          name: ${{ parameters.name }}
+          access: ${{ parameters.access or 'read-write' }}
+          envPrefix: ${{ parameters.name | upper | replace('-', '_') }}
+
+    - id: connect
+      name: Open a pull request in the service repository
+      if: ${{ parameters.connect and parameters.component }}
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=0019-KDU&repo=${{ parameters.component | parseEntityRef | pick('name') }}
+        branchName: connect/rds-postgres-${{ parameters.environment }}-${{ parameters.name }}
+        sourcePath: service-pr
+        title: 'Connect rds-postgres "${{ parameters.name }}" (${{ parameters.environment }})'
+        commitMessage: 'Bind rds-postgres ${{ parameters.name }} in ${{ parameters.environment }} (via Backstage)'
+        description: |
+          Gives this service access to **rds-postgres `${{ parameters.name }}`** in **${{ parameters.environment }}**
+          (binding file `infra/app/bindings/${{ parameters.environment }}/`).
+
+          Environment variables: prefix `${{ parameters.name | upper | replace('-', '_') }}_`.
+
+          **Merge after** the resource request in `platform-resources` has been merged and applied.
+
   output:
     links:
-      - title: Pull request (plan + review; merge to create)
+      - title: 1. Resource request (plan + review; merge to create)
         url: ${{ steps.pr.output.remoteUrl }}
+      - title: 2. Service access (merge after 1 is applied)
+        if: ${{ parameters.connect and parameters.component }}
+        url: ${{ steps.connect.output.remoteUrl }}
     text:
       - title: What happens next
         content: |

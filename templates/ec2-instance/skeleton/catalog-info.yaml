@@ -1,7 +1,7 @@
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: ec2-${{ values.name }}
+  name: ec2-${{ values.environment }}-${{ values.name }}
   title: ${{ values.name }} [${{ values.environment }}] (EC2 instance)
   description: ${{ values.description | dump }}
   annotations:
@@ -13,7 +13,7 @@ metadata:
     - url: https://ap-south-1.console.aws.amazon.com/ec2/home?region=ap-south-1#Instances:tag:Name=devops94-idp-${{ values.environment }}-res-${{ values.name }}
       title: EC2 console
       icon: cloud
-    - url: https://github.com/0019-KDU/platform-resources/tree/main/resources/${{ values.type }}/${{ values.name }}
+    - url: https://github.com/0019-KDU/platform-resources/tree/main/resources/${{ values.type }}/${{ values.environment }}/${{ values.name }}
       title: Terraform definition
       icon: github
 spec:

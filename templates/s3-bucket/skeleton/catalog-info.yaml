@@ -1,7 +1,7 @@
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: s3-${{ values.name }}
+  name: s3-${{ values.environment }}-${{ values.name }}
   title: ${{ values.name }} [${{ values.environment }}] (S3 bucket)
   description: ${{ values.description | dump }}
   annotations:
@@ -13,7 +13,7 @@ metadata:
     - url: https://s3.console.aws.amazon.com/s3/buckets/devops94-idp-${{ values.environment }}-res-${{ values.name }}-697502032879?region=ap-south-1
       title: S3 console
       icon: cloud
-    - url: https://github.com/0019-KDU/platform-resources/tree/main/resources/${{ values.type }}/${{ values.name }}
+    - url: https://github.com/0019-KDU/platform-resources/tree/main/resources/${{ values.type }}/${{ values.environment }}/${{ values.name }}
       title: Terraform definition
       icon: github
 spec:

@@ -1,0 +1,1 @@
+{"type": "rds-postgres", "name": "${{ values.name }}", "env_prefix": "${{ values.envPrefix }}"}

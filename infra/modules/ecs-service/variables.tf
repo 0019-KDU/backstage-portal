@@ -100,6 +100,12 @@ variable "secret_arns" {
   default     = []
 }
 
+variable "task_policy_json" {
+  description = "IAM policy (JSON) for the app itself (task role), e.g. from service-bindings; empty = no AWS access"
+  type        = string
+  default     = ""
+}
+
 variable "log_retention_days" {
   type    = number
   default = 14

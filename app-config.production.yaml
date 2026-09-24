@@ -84,9 +84,9 @@ catalog:
       rules:
         - allow: [Location, Template]
 
-    # Self-service cloud resources (RDS, S3, EC2): discovered after their PR is merged
+    # Self-service cloud resources (RDS, S3, EC2): resources/<type>/<environment>/<name>, discovered after merge
     - type: url
-      target: https://github.com/0019-KDU/platform-resources/blob/main/resources/*/*/catalog-info.yaml
+      target: https://github.com/0019-KDU/platform-resources/blob/main/resources/*/*/*/catalog-info.yaml
       rules:
         - allow: [Resource]
 

@@ -71,7 +71,7 @@ spec:
       action: fetch:template
       input:
         url: ./skeleton
-        targetPath: resources/ec2-instance/${{ parameters.name }}
+        targetPath: resource-pr/resources/ec2-instance/${{ parameters.environment }}/${{ parameters.name }}
         values:
           name: ${{ parameters.name }}
           description: ${{ parameters.description }}
@@ -87,7 +87,8 @@ spec:
       action: publish:github:pull-request
       input:
         repoUrl: github.com?owner=0019-KDU&repo=platform-resources
-        branchName: request/ec2-instance-${{ parameters.name }}
+        branchName: request/ec2-instance-${{ parameters.environment }}-${{ parameters.name }}
+        sourcePath: resource-pr
         title: 'Request: EC2 instance "${{ parameters.name }}"'
         commitMessage: 'Request EC2 instance ${{ parameters.name }} (via Backstage)'
         description: |

@@ -44,3 +44,11 @@ resource "aws_iam_role" "task" {
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
   tags               = local.tags
 }
+
+# Permissions for the application code (e.g. bound S3 buckets). Nothing by default.
+resource "aws_iam_role_policy" "task" {
+  count  = var.task_policy_json != "" ? 1 : 0
+  name   = "bindings"
+  role   = aws_iam_role.task.id
+  policy = var.task_policy_json
+}

@@ -10,7 +10,7 @@ terraform {
   }
   backend "s3" {
     bucket       = "devops94-idp-tfstate-697502032879"
-    key          = "resources/rds-postgres/${{ values.name }}/terraform.tfstate"
+    key          = "resources/rds-postgres/${{ values.environment }}/${{ values.name }}/terraform.tfstate"
     region       = "ap-south-1"
     encrypt      = true
     use_lockfile = true
